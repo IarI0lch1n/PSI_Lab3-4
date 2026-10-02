@@ -1,50 +1,47 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: 0.0.0 -> 1.0.0
+- Modified principles: initial placeholder scaffold -> I. Clarity and Intent, II. Evidence-Driven Change, III. Quality Before Delivery, IV. Collaboration and Review, V. Change Safety and Maintainability
+- Added sections: Additional Constraints; Development Workflow
+- Removed sections: none
+- Follow-up TODOs: none
+-->
+
+# PSI Lab 3-4 Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Clarity and Intent
+All work MUST begin with a clear problem statement, a defined outcome, and explicit acceptance criteria. Scope, constraints, and assumptions MUST be stated before implementation begins so that decisions remain traceable to user need and project intent.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Evidence-Driven Change
+Every significant decision MUST be grounded in observable evidence such as requirements, test results, logs, metrics, or direct verification. Changes without proof of impact are not considered valid until they are validated in context.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Quality Before Delivery
+Features, fixes, and configuration changes MUST satisfy agreed acceptance criteria and preserve the reliability of the existing system. No work is complete until the relevant verification has been performed and the result is recorded.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Collaboration and Review
+Work MUST be reviewed by at least one other contributor before it is merged or handed off. Review feedback that identifies correctness, safety, maintainability, or scope concerns MUST be addressed before completion.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Change Safety and Maintainability
+Changes MUST be small, readable, and explainable. Complexity MUST be justified and documented, and any added dependency, risk, or migration requirement MUST be addressed before release.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Additional Constraints
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+This project MUST maintain a clear separation between governance artifacts and application work. Constitutional updates MUST be recorded in .specify/memory/constitution.md, while feature implementation, testing, and deployment work remain governed by their respective task and review processes.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Sensitive information MUST not be committed to the repository. Secrets, credentials, tokens, and personal data MUST be stored outside the project and referenced only through secure configuration channels.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+## Development Workflow
+
+All work MUST follow a defined lifecycle: identify the requirement, validate the assumptions, implement the smallest viable change, verify the result with the relevant evidence, and review the outcome before completion. Documentation and operational notes MUST be kept current when they affect how the project is used or maintained.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This Constitution governs project decision-making and supersedes informal practices that conflict with it. Amendments MUST be proposed in writing, reviewed for impact, and approved before taking effect. Any material change MUST include a clear rationale, any migration or compatibility implications, and a version update.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+The versioning policy is semantic versioning: MAJOR changes remove or redefine core governance requirements, MINOR changes add or materially expand principles or sections, and PATCH changes clarify or refine existing guidance without changing intent. The project MUST record the ratification date and the amendment date in the constitution header.
+
+Compliance review occurs at the same points as normal project review: pull requests, milestones, and release readiness checks. Reviewers MUST confirm that changes remain aligned with this Constitution and that unresolved exceptions are explicitly documented.
+
+**Version**: 1.0.0 | **Ratified**: 2026-10-02 | **Last Amended**: 2026-10-02
