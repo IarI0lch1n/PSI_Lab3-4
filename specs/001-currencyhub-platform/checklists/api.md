@@ -50,3 +50,11 @@
 - `/speckit-implement` reads checklist checkbox state as a gate and must not modify markers.
 - `checklists/requirements.md` has a separate built-in lifecycle maintained by `/speckit-specify` and `/speckit-clarify`.
 - Add reviewer findings inline and link them to the relevant specification or contract sections.
+
+## Additional API Requirement Coverage
+
+- [ ] CHK015 Are current-rate requirements explicit that each currency row identifies its own provider, effective time, and freshness when a snapshot contains mixed sources or timestamps? [Completeness, Gap, Spec §FR-009, Spec §FR-010]
+- [ ] CHK016 Do All Currencies requirements define whether provenance and freshness are identifiable for each visible currency value, rather than only requiring a shared snapshot? [Coverage, Gap, Spec §FR-007, Spec §FR-008]
+- [ ] CHK017 Are conversion requirements complete for a missing source or target rate, including whether a clearly identified fallback is allowed or the conversion must be unavailable? [Edge Case, Gap, Spec §FR-003, Spec §FR-004, Spec §FR-018]
+- [ ] CHK018 Are requirements for displaying two-leg conversion provenance and mixed-period analytics consistent between web and mobile experiences? [Consistency, Spec §FR-022, Spec §FR-025]
+- [ ] CHK019 Are the user-facing meanings of provider and freshness summaries clear to a general user when multiple providers or stale, cached, and fallback data contribute? [Clarity, Gap, Spec §FR-013, Spec §FR-024, Spec §FR-025]
