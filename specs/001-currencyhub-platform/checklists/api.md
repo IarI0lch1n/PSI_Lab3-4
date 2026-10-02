@@ -10,38 +10,38 @@
 
 ## Requirement Completeness
 
-- [ ] CHK001 Are conversion requirements explicit that provenance is retained independently for both source and target rate entries, including currency, provider, effective timestamp, freshness state, fallback flag, and snapshot identifier? [Completeness, Gap, Spec §FR-003]
-- [ ] CHK002 Do historical-series requirements require every pair point to retain provenance for both base and quote rate entries, including each entry's effective timestamp and the snapshot used? [Completeness, Spec §FR-014]
-- [ ] CHK003 Do analytics requirements define how provider identities and live, fallback, and cached freshness are summarized when a period contains mixed provenance? [Completeness, Gap, Spec §FR-013, Spec §FR-014]
+- [x] CHK001 Are conversion requirements explicit that provenance is retained independently for both source and target rate entries, including currency, provider, effective timestamp, freshness state, fallback flag, and snapshot identifier? [Completeness, Gap, Spec §FR-003]
+- [x] CHK002 Do historical-series requirements require every pair point to retain provenance for both base and quote rate entries, including each entry's effective timestamp and the snapshot used? [Completeness, Spec §FR-014]
+- [x] CHK003 Do analytics requirements define how provider identities and live, fallback, and cached freshness are summarized when a period contains mixed provenance? [Completeness, Gap, Spec §FR-013, Spec §FR-014]
 
 ## Requirement Clarity
 
-- [ ] CHK004 Is the meaning and direction of the derived pair rate unambiguous for source-to-target conversions, including its relationship to the returned amount? [Clarity, Spec §FR-003]
-- [ ] CHK005 Are the per-entry `effective_at`, historical point date, and snapshot capture time distinguished so each timestamp's meaning is clear? [Clarity, Spec §FR-003, Spec §FR-014]
-- [ ] CHK006 Are `source_rate` and `target_rate` consistently defined as the selected source/target currencies for conversion and the base/quote currencies for history? [Clarity, Spec §FR-003, Spec §FR-014]
-- [ ] CHK007 Are analytics provider sets and freshness counts defined with precise counting semantics, including whether freshness counts represent rate entries or points? [Clarity, Spec §FR-013]
+- [x] CHK004 Is the meaning and direction of the derived pair rate unambiguous for source-to-target conversions, including its relationship to the returned amount? [Clarity, Spec §FR-003]
+- [x] CHK005 Are the per-entry `effective_at`, historical point date, and snapshot capture time distinguished so each timestamp's meaning is clear? [Clarity, Spec §FR-003, Spec §FR-014]
+- [x] CHK006 Are `source_rate` and `target_rate` consistently defined as the selected source/target currencies for conversion and the base/quote currencies for history? [Clarity, Spec §FR-003, Spec §FR-014]
+- [x] CHK007 Are analytics provider sets and freshness counts defined with precise counting semantics, including whether freshness counts represent rate entries or points? [Clarity, Spec §FR-013]
 
 ## Requirement Consistency
 
-- [ ] CHK008 Are the product specification, API contract, and domain model consistent about pair results having two independent providers, timestamps, and freshness states rather than one global source? [Consistency, Spec §FR-003, Spec §FR-014]
-- [ ] CHK009 Are per-entry freshness and fallback meanings consistent across latest rates, conversion results, historical points, and analytics summaries? [Consistency, Spec §FR-019, Spec §FR-020, Spec §FR-025]
+- [x] CHK008 Are the product specification, API contract, and domain model consistent about pair results having two independent providers, timestamps, and freshness states rather than one global source? [Consistency, Spec §FR-003, Spec §FR-014]
+- [x] CHK009 Are per-entry freshness and fallback meanings consistent across latest rates, conversion results, historical points, and analytics summaries? [Consistency, Spec §FR-019, Spec §FR-020, Spec §FR-025]
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK010 Are user-facing acceptance criteria sufficient for a user to identify the provider, effective date, and freshness of each currency leg in a mixed-provider result? [Measurability, Spec §SC-005, Spec §SC-006, Spec §SC-009]
+- [x] CHK010 Are user-facing acceptance criteria sufficient for a user to identify the provider, effective date, and freshness of each currency leg in a mixed-provider result? [Measurability, Spec §SC-005, Spec §SC-006, Spec §SC-009]
 
 ## Scenario Coverage
 
-- [ ] CHK011 Do requirements cover pair results where both currencies use the same provider as well as different providers and different effective timestamps? [Coverage, Spec §US2, Spec §US4, Spec §FR-020]
+- [x] CHK011 Do requirements cover pair results where both currencies use the same provider as well as different providers and different effective timestamps? [Coverage, Spec §US2, Spec §US4, Spec §FR-020]
 
 ## Edge Case Coverage
 
-- [ ] CHK012 Are requirements defined for one rate leg being fallback or cached while the other is live, and for either required rate entry being unavailable? [Coverage, Edge Case, Spec §FR-014, Spec §FR-019, Spec §FR-025]
-- [ ] CHK013 Are provenance requirements clear for same-currency conversions and for empty or incomplete historical pair data? [Coverage, Edge Case, Spec §FR-006, Spec §FR-014]
+- [x] CHK012 Are requirements defined for one rate leg being fallback or cached while the other is live, and for either required rate entry being unavailable? [Coverage, Edge Case, Spec §FR-014, Spec §FR-019, Spec §FR-025]
+- [x] CHK013 Are provenance requirements clear for same-currency conversions and for empty or incomplete historical pair data? [Coverage, Edge Case, Spec §FR-006, Spec §FR-014]
 
 ## Ambiguities & Conflicts
 
-- [ ] CHK014 Is the interpretation of a pair value clear when the two rate entries have different effective timestamps but belong to the same snapshot? [Ambiguity, Spec §FR-020, Spec §FR-021]
+- [x] CHK014 Is the interpretation of a pair value clear when the two rate entries have different effective timestamps but belong to the same snapshot? [Ambiguity, Spec §FR-020, Spec §FR-021]
 
 ## Notes
 
@@ -53,8 +53,8 @@
 
 ## Additional API Requirement Coverage
 
-- [ ] CHK015 Are current-rate requirements explicit that each currency row identifies its own provider, effective time, and freshness when a snapshot contains mixed sources or timestamps? [Completeness, Gap, Spec §FR-009, Spec §FR-010]
-- [ ] CHK016 Do All Currencies requirements define whether provenance and freshness are identifiable for each visible currency value, rather than only requiring a shared snapshot? [Coverage, Gap, Spec §FR-007, Spec §FR-008]
-- [ ] CHK017 Are conversion requirements complete for a missing source or target rate, including whether a clearly identified fallback is allowed or the conversion must be unavailable? [Edge Case, Gap, Spec §FR-003, Spec §FR-004, Spec §FR-018]
-- [ ] CHK018 Are requirements for displaying two-leg conversion provenance and mixed-period analytics consistent between web and mobile experiences? [Consistency, Spec §FR-022, Spec §FR-025]
-- [ ] CHK019 Are the user-facing meanings of provider and freshness summaries clear to a general user when multiple providers or stale, cached, and fallback data contribute? [Clarity, Gap, Spec §FR-013, Spec §FR-024, Spec §FR-025]
+- [x] CHK015 Are current-rate requirements explicit that each currency row identifies its own provider, effective time, and freshness when a snapshot contains mixed sources or timestamps? [Completeness, Gap, Spec §FR-009, Spec §FR-010]
+- [x] CHK016 Do All Currencies requirements define whether provenance and freshness are identifiable for each visible currency value, rather than only requiring a shared snapshot? [Coverage, Gap, Spec §FR-007, Spec §FR-008]
+- [x] CHK017 Are conversion requirements complete for a missing source or target rate, including whether a clearly identified fallback is allowed or the conversion must be unavailable? [Edge Case, Gap, Spec §FR-003, Spec §FR-004, Spec §FR-018]
+- [x] CHK018 Are requirements for displaying two-leg conversion provenance and mixed-period analytics consistent between web and mobile experiences? [Consistency, Spec §FR-022, Spec §FR-025]
+- [x] CHK019 Are the user-facing meanings of provider and freshness summaries clear to a general user when multiple providers or stale, cached, and fallback data contribute? [Clarity, Gap, Spec §FR-013, Spec §FR-024, Spec §FR-025]
