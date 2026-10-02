@@ -2,7 +2,7 @@
 
 ## Overview
 
-This feature centers on a small but critical set of exchange-rate and analytics entities. The data model is designed to preserve temporal accuracy, support offline usage, and separate business rules from external provider behavior.
+This feature centers on a small but critical set of exchange-rate and analytics entities. The data model preserves per-currency provenance, supports offline usage, and separates business logic from external provider behavior.
 
 ## Core Entities
 
@@ -26,33 +26,33 @@ This feature centers on a small but critical set of exchange-rate and analytics 
 |-------|------|-------------|
 | snapshot_id | UUID | Unique identifier for the snapshot |
 | captured_at | datetime | Time when the snapshot was validated and recorded |
-| source_name | string | Provider or internal source label |
-| source_type | enum | live, fallback, cached |
-| rate_date | date | Effective date associated with the rates |
-| is_stale | boolean | Indicates whether the snapshot is stale compared to current freshness rules |
-| rates | collection | Map of currency code to exchange rate value |
+| rates | collection | Collection of per-currency rate entries for the snapshot |
 
 **Validation rules**:
-- Rates must be normalized to a single internal representation.
-- Snapshot must be valid before it replaces the previous visible state.
-- A refresh must not overwrite a usable snapshot unless validation succeeds.
+- The snapshot acts as a consistency boundary for one validated set of rates.
+- It must not be treated as a single global source or global effective date.
+- A refresh must not partially replace the active snapshot.
 
-### HistoricalRateRecord
+### RateEntry
 
 | Field | Type | Description |
 |-------|------|-------------|
-| history_id | UUID | Unique record identifier |
-| base_currency | string | Source currency code |
-| quote_currency | string | Target currency code |
-| rate_value | decimal | Conversion rate at that timestamp |
-| rate_date | datetime | Recorded timestamp |
-| source_name | string | The origin of the rate |
-| source_type | enum | live, fallback, cached |
+| entry_id | UUID | Unique identifier for the rate entry |
+| snapshot_id | UUID | Parent snapshot identifier |
+| currency | string | Currency code for the entry |
+| normalized_rate_to_mdl | decimal | Rate normalized to 1 unit = X MDL |
+| nominal_unit | integer or null | Nominal unit used by the source, if applicable |
+| provider_name | string | Provider or source label |
+| provider_type | enum | fiat or crypto |
+| effective_at | datetime | Effective timestamp of the rate entry |
+| freshness_state | enum | live, fallback, cached |
+| is_fallback | boolean | Whether the rate was reused because of missing or invalid source data |
 
 **Validation rules**:
-- Rate value must be greater than zero.
-- Historical records are required for 7-day and 30-day analytics.
-- Duplicate timestamps for the same currency pair should be handled consistently.
+- The normalized rate must be greater than zero.
+- A given snapshot may contain values from multiple providers and different effective times.
+- Each entry must keep source and freshness metadata independently.
+- Same-currency and invalid amounts are handled in conversion logic, not in the stored rate metadata.
 
 ### ConversionRequest
 
@@ -67,7 +67,7 @@ This feature centers on a small but critical set of exchange-rate and analytics 
 **Validation rules**:
 - Amount must be present, numeric, greater than zero, and finite.
 - Source and target currency must be supported.
-- Same-currency conversion is handled as a valid direct pass-through case.
+- Same-currency conversion is handled as a valid pass-through case.
 
 ### ConversionResult
 
@@ -78,45 +78,50 @@ This feature centers on a small but critical set of exchange-rate and analytics 
 | converted_amount | decimal | Converted value |
 | source_currency | string | Source currency code |
 | target_currency | string | Target currency code |
-| rate_value | decimal | Rate used for the conversion |
-| rate_date | datetime | Date and time of the applied rate |
-| source_name | string | Data source label |
+| rate_value | decimal | Evaluated conversion rate |
+| rate_date | datetime | Timestamp used in calculation |
+| source_name | string | Source label of the rate used |
 | freshness_state | enum | live, fallback, cached |
 
 **Validation rules**:
-- Result must reflect the exact snapshot used for calculation.
+- Result must use a single validated snapshot.
 - Same-currency conversion returns the original amount unchanged.
 
 ### AnalyticsSummary
 
 | Field | Type | Description |
 |-------|------|-------------|
-| currency_pair | string | Base and quote pair key |
+| base_currency | string | Base currency for the pair |
+| quote_currency | string | Quote currency for the pair |
 | period | enum | 7d, 30d |
-| time_series | list | Ordered time-based rate values |
+| points | list | Ordered time-based values |
 | minimum | decimal | Lowest value in the window |
 | maximum | decimal | Highest value in the window |
-| average | decimal | Mean value for the window |
+| average | decimal | Mean value in the window |
 | absolute_change | decimal | End minus start |
-| percentage_change | decimal | Relative change from start to end |
-| trend | enum | growth, decline, unchanged |
+| percentage_change | decimal | Relative change from the first point |
+| trend | enum | GROWTH, DECLINE, UNCHANGED |
 | source_state | enum | live, fallback, cached |
 
 **Validation rules**:
-- Trend must be explicitly derived from the comparison of beginning and ending values.
-- Empty windows must yield an empty-state response rather than a crash.
+- Trend is derived from the first and last available values.
+- Empty windows must yield an empty-state response instead of an exception.
 
 ## Relationships
 
-- A Currency participates in many RateSnapshot entries.
-- A RateSnapshot contains many historical rate values for supported currencies.
-- A ConversionRequest leads to exactly one ConversionResult for the request.
-- HistoricalRateRecord data feeds the AnalyticsSummary for both 7-day and 30-day views.
-- Cached or fallback snapshots are subsets of the same currency dataset and are labeled distinctly.
+- A Currency is represented by many RateEntry records over time.
+- A RateSnapshot contains many RateEntry values for the same validation boundary.
+- A ConversionRequest leads to exactly one ConversionResult.
+- Historical analytics are derived from stored normalized RateEntry records rather than from duplicated pairwise history tables.
+- Cached and fallback values are tracked per entry and remain distinguishable from live values.
 
 ## State and lifecycle notes
 
-- Live rates are preferred when available.
-- Fallback data is used when the normal source has no published value for a weekend or holiday.
-- Cached data is used when the user is offline or the provider is unavailable.
-- A refreshed snapshot replaces active state only after it passes validation.
+- Live entries are preferred when available.
+- Fallback entries are used when the source is missing for a weekend or holiday or when the source response is incomplete.
+- Cached entries are used when offline or when the backend cannot refresh successfully.
+- A refreshed snapshot replaces the active state only after the full snapshot passes validation.
+
+## Historical bootstrap and derivation rule
+
+The historical backfill process populates the database with up to the previous 30 days of available fiat and crypto values before analytics is expected to be useful. Those historical values are stored as normalized rate entries and are not duplicated as pairwise records. When a client requests a pair or analytics window, the system derives the pair values from the two currencies' normalized rate-to-MDL values using the conversion formula.
