@@ -79,12 +79,13 @@ This feature centers on a small but critical set of exchange-rate and analytics 
 | source_currency | string | Source currency code |
 | target_currency | string | Target currency code |
 | rate_value | decimal | Evaluated conversion rate |
-| rate_date | datetime | Timestamp used in calculation |
-| source_name | string | Source label of the rate used |
-| freshness_state | enum | live, fallback, cached |
+| rate_context | object | Both rate entries used and the snapshot identifier |
+
+`rate_context` contains `source_rate` and `target_rate`, each with currency, provider_name, effective_at, freshness_state, and is_fallback, plus `snapshot_id` for the validated snapshot.
 
 **Validation rules**:
 - Result must use a single validated snapshot.
+- Pair-level provenance must retain the independent source and target rate metadata; do not represent a mixed-provider conversion with one provider, timestamp, or freshness value.
 - Same-currency conversion returns the original amount unchanged.
 
 ### AnalyticsSummary
@@ -101,10 +102,13 @@ This feature centers on a small but critical set of exchange-rate and analytics 
 | absolute_change | decimal | End minus start |
 | percentage_change | decimal | Relative change from the first point |
 | trend | enum | GROWTH, DECLINE, UNCHANGED |
-| source_state | enum | live, fallback, cached |
+| provenance_summary | object | Provider sets and freshness/fallback counts across the selected period |
+
+Each historical point contains a date, derived pair value, and `rate_context` with source_rate, target_rate, and snapshot_id. Each rate context entry retains currency, provider_name, effective_at, freshness_state, and is_fallback.
 
 **Validation rules**:
 - Trend is derived from the first and last available values.
+- Provenance summaries must not collapse mixed providers or freshness states into a single state.
 - Empty windows must yield an empty-state response instead of an exception.
 
 ## Relationships

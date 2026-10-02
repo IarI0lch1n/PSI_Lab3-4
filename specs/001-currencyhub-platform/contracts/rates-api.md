@@ -88,8 +88,8 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
 ```json
 {
   "amount": "100.00",
-  "source_currency": "USD",
-  "target_currency": "EUR"
+  "source_currency": "EUR",
+  "target_currency": "BTC"
 }
 ```
 
@@ -98,13 +98,27 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
 ```json
 {
   "source_amount": "100.00",
-  "converted_amount": "92.35",
-  "source_currency": "USD",
-  "target_currency": "EUR",
-  "rate_value": "0.9235",
-  "rate_date": "2026-10-02T09:00:00Z",
-  "source_name": "BNM",
-  "freshness_state": "live"
+  "converted_amount": "0.00347",
+  "source_currency": "EUR",
+  "target_currency": "BTC",
+  "rate_value": "0.0000347",
+  "rate_context": {
+    "source_rate": {
+      "currency": "EUR",
+      "provider_name": "BNM",
+      "effective_at": "2026-10-02T09:00:00Z",
+      "freshness_state": "live",
+      "is_fallback": false
+    },
+    "target_rate": {
+      "currency": "BTC",
+      "provider_name": "CoinGecko",
+      "effective_at": "2026-10-02T09:30:00Z",
+      "freshness_state": "fallback",
+      "is_fallback": true
+    },
+    "snapshot_id": "uuid"
+  }
 }
 ```
 
@@ -112,6 +126,8 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
 - Invalid input must be rejected before conversion.
 - Same-currency conversion must return the original amount.
 - The conversion must use one consistent snapshot and the exact rate entries used for the request.
+- `rate_value` is the derived pair rate; a mixed-provider conversion must not be labeled with one provider, timestamp, or freshness state.
+- `rate_context.source_rate` and `rate_context.target_rate` each retain currency, provider_name, effective_at, freshness_state, and is_fallback; `snapshot_id` identifies the validated snapshot used.
 
 ### GET /api/v1/history
 
@@ -128,12 +144,52 @@ Query parameters:
 
 ```json
 {
-  "base_currency": "USD",
-  "quote_currency": "EUR",
+  "base_currency": "EUR",
+  "quote_currency": "BTC",
   "period": "7d",
   "points": [
-    { "date": "2026-09-26", "value": "17.25", "source": "BNM", "freshness_state": "live", "is_fallback": false },
-    { "date": "2026-09-27", "value": "17.32", "source": "BNM", "freshness_state": "fallback", "is_fallback": true }
+    {
+      "date": "2026-09-26",
+      "value": "0.0000321",
+      "rate_context": {
+        "source_rate": {
+          "currency": "EUR",
+          "provider_name": "BNM",
+          "effective_at": "2026-09-26T09:00:00Z",
+          "freshness_state": "live",
+          "is_fallback": false
+        },
+        "target_rate": {
+          "currency": "BTC",
+          "provider_name": "CoinGecko",
+          "effective_at": "2026-09-26T09:30:00Z",
+          "freshness_state": "live",
+          "is_fallback": false
+        },
+        "snapshot_id": "uuid"
+      }
+    },
+    {
+      "date": "2026-09-27",
+      "value": "0.0000318",
+      "rate_context": {
+        "source_rate": {
+          "currency": "EUR",
+          "provider_name": "BNM",
+          "effective_at": "2026-09-25T09:00:00Z",
+          "freshness_state": "fallback",
+          "is_fallback": true
+        },
+        "target_rate": {
+          "currency": "BTC",
+          "provider_name": "CoinGecko",
+          "effective_at": "2026-09-27T09:30:00Z",
+          "freshness_state": "live",
+          "is_fallback": false
+        },
+        "snapshot_id": "uuid"
+      }
+    }
   ],
   "empty": false
 }
@@ -154,7 +210,7 @@ Query parameters:
 
 **Business rules**:
 - Historical values are derived from normalized rate entries, not from duplicated pairwise storage.
-- The response must include source and freshness metadata when points exist.
+- Every point retains provider, effective timestamp, freshness state, and fallback status for both the base and quote rate entries, plus the snapshot_id used to derive the pair value.
 - Empty historical datasets must return an explicit empty state.
 
 ### GET /api/v1/analytics
@@ -172,20 +228,30 @@ Query parameters:
 
 ```json
 {
-  "base_currency": "USD",
-  "quote_currency": "EUR",
+  "base_currency": "EUR",
+  "quote_currency": "BTC",
   "period": "7d",
   "points": [
-    { "date": "2026-09-26", "value": "17.25" },
-    { "date": "2026-09-27", "value": "17.32" }
+    { "date": "2026-09-26", "value": "0.0000318" },
+    { "date": "2026-09-27", "value": "0.0000322" }
   ],
-  "minimum": "17.20",
-  "maximum": "17.45",
-  "average": "17.31",
-  "absolute_change": "0.18",
-  "percentage_change": "1.04",
+  "minimum": "0.0000310",
+  "maximum": "0.0000330",
+  "average": "0.0000320",
+  "absolute_change": "0.0000004",
+  "percentage_change": "1.26",
   "trend": "GROWTH",
-  "source_state": "live",
+  "provenance_summary": {
+    "point_count": 7,
+    "source_providers": ["BNM"],
+    "target_providers": ["CoinGecko"],
+    "rate_entry_freshness_counts": {
+      "live": 13,
+      "fallback": 1,
+      "cached": 0
+    },
+    "fallback_entry_count": 1
+  },
   "empty": false
 }
 ```
@@ -194,6 +260,7 @@ Query parameters:
 - Trend is derived from the first and last available values.
 - Summary values must include minimum, maximum, average, absolute change, percentage change, and trend.
 - Empty historical datasets must return a clear empty-state response instead of failing.
+- `provenance_summary` reports distinct provider sets by pair side and counts freshness states across the two rate entries for each point; it must not reduce mixed provenance to one `source_state`.
 
 ### POST /api/v1/rates/refresh
 
@@ -249,4 +316,5 @@ Query parameters:
 
 - All UI screens must show source and freshness metadata from the API or from the local cached snapshot, never from hidden internal state.
 - The latest-rate response supports different providers and effective dates within the same snapshot because each rate entry carries independent metadata.
+- Pair conversions and historical pair points preserve provenance independently for both rate entries; analytics report aggregate provenance and freshness rather than one potentially misleading source state.
 - Empty-state responses are explicit for both history and analytics when the requested pair has no data in the selected window.

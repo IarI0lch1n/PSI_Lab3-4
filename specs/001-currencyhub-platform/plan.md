@@ -211,11 +211,21 @@ Rules:
 - absolute_change
 - percentage_change
 - trend: GROWTH | DECLINE | UNCHANGED
-- source_state: live | fallback | cached
+- provenance_summary: provider and freshness aggregates across the period
 
 Rules:
 - trend is derived explicitly from first and last available values
+- provenance_summary must preserve source-side and target-side provider sets and counts for live, fallback, and cached rate entries
 - empty datasets produce an empty-state response instead of exceptions
+
+### HistoricalPoint
+- date: date
+- value: Decimal
+- rate_context: provenance for the source and target RateEntry values and their shared snapshot_id
+
+Rules:
+- each point retains both currencies' provider, effective timestamp, freshness state, and fallback status
+- pair values are derived from the two normalized rates in the referenced snapshot
 
 ## Database Model
 
@@ -350,8 +360,8 @@ Request:
 ```json
 {
   "amount": "100.00",
-  "source_currency": "USD",
-  "target_currency": "EUR"
+  "source_currency": "EUR",
+  "target_currency": "BTC"
 }
 ```
 
@@ -359,13 +369,27 @@ Response:
 ```json
 {
   "source_amount": "100.00",
-  "converted_amount": "92.35",
-  "source_currency": "USD",
-  "target_currency": "EUR",
-  "rate_value": "0.9235",
-  "rate_date": "2026-10-02T09:00:00Z",
-  "source_name": "BNM",
-  "freshness_state": "live"
+  "converted_amount": "0.00347",
+  "source_currency": "EUR",
+  "target_currency": "BTC",
+  "rate_value": "0.0000347",
+  "rate_context": {
+    "source_rate": {
+      "currency": "EUR",
+      "provider_name": "BNM",
+      "effective_at": "2026-10-02T09:00:00Z",
+      "freshness_state": "live",
+      "is_fallback": false
+    },
+    "target_rate": {
+      "currency": "BTC",
+      "provider_name": "CoinGecko",
+      "effective_at": "2026-10-02T09:30:00Z",
+      "freshness_state": "live",
+      "is_fallback": false
+    },
+    "snapshot_id": "uuid"
+  }
 }
 ```
 
@@ -373,6 +397,8 @@ Business rules:
 - invalid input is rejected before conversion
 - same-currency conversion returns the original amount
 - conversion must use one consistent snapshot at one point in time
+- `rate_value` is the derived pair rate and must not imply a single provider for the result
+- `rate_context` identifies both rate entries used, including independent providers, effective timestamps, and freshness states
 
 ### GET /api/v1/history
 Purpose: return historical values for a selected source and target currency over a requested period.
@@ -385,16 +411,30 @@ Query parameters:
 Response:
 ```json
 {
-  "base_currency": "USD",
-  "quote_currency": "EUR",
+  "base_currency": "EUR",
+  "quote_currency": "BTC",
   "period": "7d",
   "points": [
     {
       "date": "2026-09-26",
-      "value": "17.25",
-      "source": "BNM",
-      "freshness_state": "live",
-      "is_fallback": false
+      "value": "0.0000321",
+      "rate_context": {
+        "source_rate": {
+          "currency": "EUR",
+          "provider_name": "BNM",
+          "effective_at": "2026-09-26T09:00:00Z",
+          "freshness_state": "live",
+          "is_fallback": false
+        },
+        "target_rate": {
+          "currency": "BTC",
+          "provider_name": "CoinGecko",
+          "effective_at": "2026-09-26T09:30:00Z",
+          "freshness_state": "live",
+          "is_fallback": false
+        },
+        "snapshot_id": "uuid"
+      }
     }
   ],
   "empty": false
@@ -424,20 +464,30 @@ Query parameters:
 Response:
 ```json
 {
-  "base_currency": "USD",
-  "quote_currency": "EUR",
+  "base_currency": "EUR",
+  "quote_currency": "BTC",
   "period": "7d",
   "points": [
-    { "date": "2026-09-26", "value": "17.25" },
-    { "date": "2026-09-27", "value": "17.32" }
+    { "date": "2026-09-26", "value": "0.0000318" },
+    { "date": "2026-09-27", "value": "0.0000322" }
   ],
-  "minimum": "17.20",
-  "maximum": "17.45",
-  "average": "17.31",
-  "absolute_change": "0.18",
-  "percentage_change": "1.04",
+  "minimum": "0.0000310",
+  "maximum": "0.0000330",
+  "average": "0.0000320",
+  "absolute_change": "0.0000004",
+  "percentage_change": "1.26",
   "trend": "GROWTH",
-  "source_state": "live",
+  "provenance_summary": {
+    "point_count": 7,
+    "source_providers": ["BNM"],
+    "target_providers": ["CoinGecko"],
+    "rate_entry_freshness_counts": {
+      "live": 14,
+      "fallback": 0,
+      "cached": 0
+    },
+    "fallback_entry_count": 0
+  },
   "empty": false
 }
 ```
@@ -445,7 +495,7 @@ Response:
 Business rules:
 - trend is calculated as first-to-last available value comparison
 - empty datasets return an explicit empty-state response
-- metadata includes freshness and source information where available
+- provenance summary reports source-side and target-side provider sets and freshness counts across all rate entries used in the period; it must not collapse mixed provenance into one source state
 
 ### POST /api/v1/rates/refresh
 Purpose: trigger a synchronization cycle without requiring a frontend refresh action.
