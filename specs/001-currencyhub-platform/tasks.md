@@ -155,7 +155,8 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 - [ ] T062 Review environment configuration, CORS restrictions, and secret exclusions against the constitution and FR-026 scope/security boundaries; verify sample values are placeholders and frontend files contain no database credentials or provider secrets in `backend/.env.example`, `backend/app/core/config/settings.py`, and `.gitignore`
 - [ ] T063 Execute the quickstart conversion, validation, comparison, analytics, offline, and restart scenarios against fake/mock providers; for SC-001, time the standard conversion flow on Angular web and Flutter mobile from when the converter screen is fully ready for user input until both the conversion result and its rate context are visible, record each measurement and pass/fail against the under-30-second threshold, and record results in `specs/001-currencyhub-platform/quickstart.md`; record pass/fail outcomes for FR-003-FR-025 and SC-002-SC-018 and confirm no automated scenario contacts live BNM or crypto providers
 - [ ] T064 Verify every published rate-entry contract includes `freshness_state`, `is_fallback`, and `is_stale`; verify analytics and refresh summaries separate primary freshness counts, `stale_entry_count`, and `fallback_entry_count`; record contract-check outcomes against FR-003, FR-013, FR-014, FR-019-FR-025 and SC-005-SC-009, SC-012-SC-018 in `specs/001-currencyhub-platform/contracts/rates-api.md` and `specs/001-currencyhub-platform/quickstart.md`
-- [ ] T065 Prepare five representative conversion/analytics scenarios and have a person unfamiliar with CurrencyHub review them without technical explanation; ask them to identify the relevant provider/freshness meaning in each, record every result in `specs/001-currencyhub-platform/quickstart.md`, and confirm SC-010 passes only if at least 4 of 5 are interpreted correctly (automated tests do not substitute for this review); record final acceptance results and any remaining gaps with explicit FR/SC references and confirm all five user-story independent tests pass before handoff in `specs/001-currencyhub-platform/quickstart.md`
+- [ ] T065 Prepare five representative conversion/analytics scenarios and have a person unfamiliar with currency data review them without technical explanation; for each scenario, ask the participant to identify the provider and freshness meaning/status for both rate legs, record each scenario's result in `specs/001-currencyhub-platform/quickstart.md`, and confirm SC-010 passes only when both rate legs are correctly interpreted in at least 4 of 5 scenarios; automated tests do not substitute for this usability review. Record final acceptance results and any remaining gaps with explicit FR/SC references and confirm all five user-story independent tests pass in `specs/001-currencyhub-platform/quickstart.md`
+- [ ] T066 Before handoff, complete and record a documented review in `specs/001-currencyhub-platform/quickstart.md` or another existing project review section; for a solo project, self-review specification/implementation consistency, acceptance criteria, automated test results, correctness, safety, maintainability, scope compliance, and unresolved `/speckit-analyze` findings; if another contributor is available, an independent contributor review may satisfy this review instead. Record the outcome and ensure all CRITICAL findings are resolved before handoff
 
 ---
 
@@ -185,7 +186,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 - US3: T036 and T039 can proceed in parallel; then T037 and T040 can proceed in parallel.
 - US4: T042 and T043 can proceed in parallel; T048 and T050 can proceed in parallel after T046.
 - US5: T055 and T057 can proceed in parallel after freshness semantics in T052/T053 are finalized; T056 and T058 can proceed in parallel with their respective storage implementations.
-- Polish: T061 and T062 can proceed in parallel; T063-T065 follow implemented stories and available outcomes.
+- Polish: T061 and T062 can proceed in parallel; T063-T065 follow implemented stories and available outcomes; T066 is the final review gate after acceptance verification.
 
 ### Parallel Execution Examples
 
@@ -198,7 +199,7 @@ After conversion contract: T032 + T034
 After Phase 2: T036 + T039; T042 + T043
 After analytics contract: T048 + T050
 After refresh policy: T055 + T057
-After implementation: T061 + T062, then T063 + T064, then T065
+After implementation: T061 + T062, then T063 + T064, then T065, then T066
 ```
 
 ## Implementation Strategy

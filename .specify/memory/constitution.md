@@ -1,8 +1,9 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 1.1.0
-- Modified principles: existing governance principles retained; no principle renames
-- Added sections: CurrencyHub Architecture and Technology Constraints
+- Version change: 1.1.0 -> 2.0.0
+- Modified principles: IV. Collaboration and Review (solo self-review permitted with
+  documented verification and unresolved-critical-findings gate)
+- Added sections: none
 - Removed sections: none
 - Follow-up TODOs: none
 -->
@@ -21,7 +22,28 @@ Every significant decision MUST be grounded in observable evidence such as requi
 Features, fixes, and configuration changes MUST satisfy agreed acceptance criteria and preserve the reliability of the existing system. No work is complete until the relevant verification has been performed and the result is recorded.
 
 ### IV. Collaboration and Review
-Work MUST be reviewed by at least one other contributor before it is merged or handed off. Review feedback that identifies correctness, safety, maintainability, or scope concerns MUST be addressed before completion.
+All work MUST undergo a documented review before it is merged or handed off.
+
+When more than one project contributor exists, the review MUST be performed by
+another contributor.
+
+For an individual/solo project, a documented self-review is permitted instead.
+The self-review MUST verify:
+
+- specification and implementation consistency
+- acceptance criteria
+- automated test results
+- correctness
+- safety
+- maintainability
+- scope compliance
+- unresolved specification-analysis findings
+
+A solo-project review MUST record its outcome before merge or handoff and MUST
+not ignore unresolved CRITICAL findings.
+
+Review feedback or self-review findings that identify correctness, safety,
+maintainability, or scope concerns MUST be resolved before completion.
 
 ### V. Change Safety and Maintainability
 Changes MUST be small, readable, and explainable. Complexity MUST be justified and documented, and any added dependency, risk, or migration requirement MUST be addressed before release.
@@ -192,6 +214,6 @@ This Constitution governs project decision-making and supersedes informal practi
 
 The versioning policy is semantic versioning: MAJOR changes remove or redefine core governance requirements, MINOR changes add or materially expand principles or sections, and PATCH changes clarify or refine existing guidance without changing intent. The project MUST record the ratification date and the amendment date in the constitution header.
 
-Compliance review occurs at the same points as normal project review: pull requests, milestones, and release readiness checks. Reviewers MUST confirm that changes remain aligned with this Constitution and that unresolved exceptions are explicitly documented.
+Compliance review occurs at the same points as normal project review: pull requests, milestones, and release readiness checks. The documented review required by Principle IV MUST verify alignment with this Constitution and record unresolved exceptions; a solo-project review MUST NOT ignore unresolved CRITICAL findings.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-02 | **Last Amended**: 2026-10-02
+**Version**: 2.0.0 | **Ratified**: 2026-10-02 | **Last Amended**: 2026-10-21
