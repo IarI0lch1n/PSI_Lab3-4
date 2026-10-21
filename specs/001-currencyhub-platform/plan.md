@@ -8,7 +8,7 @@
 
 CurrencyHub will be implemented as a single full-stack product with one shared Python backend and two client applications: an Angular web client and a Flutter mobile client. The backend remains the system of record for rate normalization, persistence, provider integration, and analytics generation. Both frontends consume the same backend API and persist the latest successful snapshot locally so they can continue to show useful information during outages or offline periods.
 
-The architecture continues to use Clean Architecture across Domain, Application, Infrastructure, and API layers. The key design correction is that a rate snapshot is treated as a consistency boundary containing many individual rate entries, not as one global source value. Each rate entry retains its own currency, normalized rate-to-MDL value, nominal/unit metadata, provider/source, effective timestamp, freshness state, and fallback indicator. Historical analytics are derived from normalized per-currency rate entries rather than storing duplicated pairwise historical tables.
+The architecture continues to use Clean Architecture across Domain, Application, Infrastructure, and API layers. The key design correction is that a rate snapshot is treated as a consistency boundary containing many individual rate entries, not as one global source value. Each rate entry retains its own currency, normalized rate-to-MDL value, nominal/unit metadata, provider/source, effective timestamp, freshness state, and fallback indicator. The source-specific freshness, fallback, cache-retention, and snapshot-usability rules in [spec.md](spec.md) are canonical and apply consistently to backend refreshes, API responses, and both clients. Historical analytics are derived from normalized per-currency rate entries rather than storing duplicated pairwise historical tables.
 
 ## Technical Context
 
@@ -26,7 +26,7 @@ The architecture continues to use Clean Architecture across Domain, Application,
 
 **Performance Goals**: Rate refresh and conversion requests should remain fast under normal conditions; cached snapshots should render immediately when the backend is unavailable; analytics should be computed from persisted normalized entries without creating redundant N×N pair storage
 
-**Constraints**: Decimal-safe arithmetic only; no floating-point conversion logic; no direct SQL Server access from frontend; no third-party credentials in frontend code; same-screen values must come from one validated snapshot; invalid input never converts; cached and fallback data must be explicitly labeled
+**Constraints**: Decimal-safe arithmetic only; no floating-point conversion logic; no direct SQL Server access from frontend; no third-party credentials in frontend code; same-screen values must come from one complete usable validated snapshot; invalid input never converts; cached, fallback, and stale data must be distinguished and labeled according to the canonical specification policy
 
 **Scale/Scope**: 18 supported currencies (10 fiat + 8 crypto), 30-day analytical retention, shared API contract across web and mobile clients
 
@@ -40,7 +40,9 @@ Pass: The implementation plan remains aligned with the constitution and specific
 - Dependency injection: repositories, providers, cache layers, and rate-resolution strategies will be injected via interfaces and factory logic.
 - Data and source rules: fiat and crypto values are normalized into a common internal representation; a snapshot remains a consistent boundary of individual entries; each entry tracks provider source and freshness metadata.
 - Financial correctness: all conversions use Decimal arithmetic and a normalized MDL basis, including correct handling of nominal units when provider quotes are based on 10, 100, or 1000 units.
-- Offline/cached behavior: last successful backend data is persisted locally in both frontends and the UI must show stale or cached status with the original timestamp.
+- Freshness and cache behavior: BNM weekend/official non-publishing-day rates use the prior official rate as a labelled, non-stale-solely-by-date fallback; unexpectedly unavailable newer BNM rates are cached/stale. Cryptocurrency rates are current for 15 minutes after successful acquisition and validation, then stale. Web and mobile retain the last successful complete snapshot without age-based deletion; restart does not make cached entries current.
+- Snapshot integrity: entries and snapshots are validated for readability, positive valid values, required currency coverage, provider provenance, and effective timestamps. Replacement is atomic; failed/incomplete refreshes preserve the previous complete usable snapshot, or produce an unavailable state when none exists. Reused entries retain their original timestamps and correct freshness/fallback metadata.
+- Offline/cached behavior: local clients retain and display the last successful complete snapshot under the canonical policy and preserve original per-entry provenance and timestamps.
 - Security: credentials remain limited to backend configuration; no secrets are committed; local development uses .env.example and environment variables.
 - Git and process: specification and plan remain in place before implementation; work is scoped to the feature branch and review-ready.
 
@@ -165,13 +167,15 @@ Rules:
 
 ### RateSnapshot
 - snapshot_id: UUID
-- captured_at: datetime
+- captured_at: datetime (successful acquisition and validation time for the complete snapshot)
 - rates: list[RateEntry]
 
 Rules:
 - the snapshot is a consistency boundary for a point-in-time rate set
 - the snapshot contains individual and independent rate entries
-- a refresh must only replace the active snapshot after the entire snapshot validates successfully
+- it is complete only when every required supported currency entry is present and each entry passes the usability checks in the canonical policy
+- it is usable only if readable and all required entries contain positive valid rates, provider provenance, and effective timestamps
+- a refresh must only replace the active snapshot after the entire candidate snapshot validates successfully; replacement is atomic
 
 ### RateEntry
 - currency: string
@@ -180,14 +184,20 @@ Rules:
 - provider_name: string
 - provider_type: Fiat | Crypto
 - effective_at: datetime
-- freshness_state: Live | Fallback | Cached
+- freshness_state: Live | Fallback | Cached (primary status)
+- is_stale: bool (derived freshness condition; may overlap with Cached)
 - is_fallback: bool
 
 Rules:
 - each rate entry is stored and processed independently
 - a single snapshot may contain entries from multiple providers and effective timestamps
 - the normalized value is the canonical value for conversion logic
-- rate entries with missing weekend or holiday fiat values use previous valid data and mark is_fallback = true
+- `is_fallback` is true only when the entry is supplied under an explicitly permitted source fallback rule; retaining a prior successful entry because a refresh failed is cached data, not automatically fallback
+- expected BNM weekend/official non-publishing-day entries are fallback and are not stale solely because their effective date is older than the current Moldova date
+- if a newer official BNM rate should exist but cannot be retrieved, an older retained BNM entry is cached/stale, not current
+- cryptocurrency entries are live/current for 15 minutes after successful snapshot acquisition and validation, then stale; reusing one does not reset its timestamp or freshness
+- `is_stale` is determined by the canonical source-specific rules and is not a provider or replacement for the primary status
+- any reused entry retains its original `effective_at`, provider provenance, and correctly updated freshness/fallback metadata
 
 ### ProviderInfo
 - provider_id
@@ -564,7 +574,7 @@ The backend uses adapters and a shared abstraction for external sources.
 
 ### Provider Patterns
 - Adapter: BNM and crypto provider integrations
-- Strategy: fallback and refresh logic, especially weekend/holiday rules
+- Strategy: source-aware fallback and refresh logic under the canonical BNM, cryptocurrency, and snapshot-usability rules
 - Factory Method: choose the correct provider for fiat or crypto data
 - Facade: application-layer service exposes current rates, conversion, all-currencies calculations, and analytics
 - Repository: persistence behind domain/application interfaces
@@ -572,24 +582,37 @@ The backend uses adapters and a shared abstraction for external sources.
 
 ## Caching and Fallback Design
 
+The rules in this section implement the canonical policy in [spec.md](spec.md); they do not define alternate freshness semantics.
+
 ### Backend resilience
-- the backend attempts a live refresh from configured providers
-- valid snapshots are persisted as the latest normalized records
-- if a refresh fails, the previous valid snapshot remains available and is not discarded
-- when weekend or holiday BNM rates are missing, the latest valid prior rate is reused and flagged as fallback
-- every rate entry stores its own freshness state and fallback flag
+- the backend attempts a refresh from configured providers and assembles one complete candidate snapshot covering every required currency
+- candidate entries must be readable, have positive valid normalized rates, and include the required currency, provider provenance, and original effective timestamp
+- missing provider data may be supplied only by an explicitly permitted fallback or by an entry from a previously successful usable snapshot; reused entries retain their original effective timestamp and provider provenance
+- the candidate becomes active only after all entries validate; persistence and active-snapshot selection are atomic
+- if refresh fails or the candidate is incomplete/invalid, preserve the previous complete usable snapshot without partial replacement; if no such snapshot exists, return/display an unavailable state
+- BNM weekend and official non-publishing-day reuse is a labelled fallback and is not stale solely because the effective date is earlier than the current Moldova date
+- when an expected newer official BNM rate cannot be retrieved, any retained older rate is cached/stale rather than current
+- a cryptocurrency entry is live/current for 15 minutes from successful snapshot acquisition and validation, then stale until replaced by a successful newer value
+- fallback-used is separate from cached status: only an explicitly permitted source fallback sets the fallback indicator; retention after a failed refresh is cached reuse
 
 ### Frontend resilience
 - Web: Angular stores the latest successful backend snapshot in browser local storage
 - Mobile: Flutter keeps the last successful snapshot in persistent local storage
 - when network or backend connectivity fails, both clients use the local cached snapshot
-- cached and stale rows show the original timestamp and source metadata
-- no client silently presents cached data as fresh
+- each client retains the last successful complete snapshot until a newer successful complete snapshot replaces it or application data is explicitly cleared; the first version has no automatic age-based deletion
+- a local snapshot is usable only if it can be read, contains all required currency entries with positive valid rates, and includes provider provenance and effective timestamps
+- cached and stale rows show original timestamps and source metadata; an application restart must never make cached entries current
+- cache-read failure or structural invalidity results in an unavailable state unless another complete usable snapshot can be supplied
+- successful replacement is atomic; a failed or incomplete refresh leaves the prior complete usable local snapshot intact
 
 ### Data freshness rules
-- live: data from the latest accepted source refresh
-- fallback: reused previous valid rate for a known gap such as weekend/holiday
-- cached: data stored locally and used because live backend data is unavailable
+- `freshness_state` records the entry's primary status: live/current, fallback, or cached; stale is a separate source-aware condition and may overlap cached status
+- live/current fiat means the latest official BNM rate that should be available for the current Moldova calendar date
+- fallback fiat means the latest previous official BNM rate used on a weekend or official non-publishing day; its effective date remains the true publication date and age alone does not make this expected fallback stale
+- an older BNM rate retained when a newer official rate should already be available is cached/stale, not current
+- live/current cryptocurrency data is within 15 minutes after successful acquisition and validation; after 15 minutes without successful refresh it is stale and may be shown only as clearly labelled stale/cached data when no newer usable value exists
+- cached means a previously successful entry or snapshot is reused because no newer usable data is available; this alone does not set the fallback-used indicator
+- stale is never a provider; all labels and status calculations preserve provider, effective timestamp, and the distinction between snapshot time, rate-effective time, and historical point date
 
 ## Financial Calculation Design
 
@@ -713,8 +736,14 @@ The backend test suite will use fake or mock provider implementations and must n
 - invalid input
 - malformed provider responses
 - empty provider responses
-- weekend/holiday fallback
-- cached rate fallback
+- BNM weekend/official non-publishing-day fallback: prior official rate is labelled fallback, keeps its effective date, and is not stale solely due to date age
+- expected newer BNM rate unavailable: older retained rate is cached/stale and never labelled current
+- crypto freshness boundary at 15 minutes after successful acquisition/validation and stale behavior after that threshold
+- snapshot readability, positive-rate, required-currency, provider-provenance, and effective-timestamp validation
+- atomic snapshot replacement after successful complete validation
+- failed/incomplete refresh preserving the previous complete usable snapshot without partial updates
+- unavailable behavior when no complete usable snapshot exists, including unreadable or structurally invalid cache and a missing required currency entry
+- reuse preserving original effective timestamps and correctly distinguishing fallback-used from cached reuse
 - 7-day statistics
 - 30-day statistics
 - empty historical data
@@ -727,7 +756,8 @@ The backend test suite will use fake or mock provider implementations and must n
 ### Frontend tests
 - validation tests for invalid amounts and required fields
 - conversion presentation tests for output formatting and source visibility
-- cached-data indicators for stale, fallback, and local cache states
+- cached-data indicators for stale, fallback, and local cache states, including restart without age-based deletion and no relabeling as current
+- client cache read/structural validation, successful atomic replacement, and failed-refresh preservation
 - analytics presentation tests for high-level summary values and trend labels
 
 ## Configuration and Security
@@ -832,4 +862,3 @@ The plan assumes a Windows setup with the following flows:
 ## Complexity Tracking
 
 No constitution violation requires an exception. The design stays within the approved architecture while correcting the earlier snapshot and historical-data issues by making snapshots a collection of independently tracked rate entries and storing one normalized data source for analytics derivation.
-

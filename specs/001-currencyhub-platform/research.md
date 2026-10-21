@@ -34,11 +34,27 @@
 
 ## Decision: Treat fallback and cached data as explicit states on each rate entry
 
-**Decision**: Every rate entry tracks a freshness_state and an is_fallback flag, while the UI describes the cached state separately when backend data is unavailable locally.
+**Decision**: Every rate entry has a primary freshness state (`live`, `fallback`, or `cached`), a separate fallback-used flag, and a source-aware stale condition. Staleness is derived independently and may overlap cached status. Only a permitted source fallback sets the fallback-used flag; retaining a prior successful entry after refresh failure is cached reuse, not automatically fallback.
 
-**Rationale**: The product requires users to know when data is live, cached, or fallback-derived, and those states can differ by currency within a single snapshot. Per-entry metadata is the clearest and most accurate approach.
+**Rationale**: The product requires users to distinguish current, fallback, cached, and stale rates without conflating substitution with cache reuse. Per-entry state preserves mixed provider and freshness provenance in one snapshot.
 
 **Alternatives considered**: A single snapshot-level fallback flag or global stale status. This would hide important source and provenance differences across currencies and would make partial fallback scenarios confusing.
+
+## Decision: Apply source-specific freshness and fallback rules from the specification
+
+**Decision**: Treat the specification's canonical rate freshness, fallback, cache, and snapshot-usability policy as authoritative. A fiat rate is current only when it represents the latest official BNM rate expected for the current Moldova date. The latest prior published rate on a weekend or official non-publishing day is a permitted fallback, labelled fallback and not stale solely due to its older effective date. If a newer official BNM rate should exist but cannot be retrieved, any older retained rate is cached/stale, not current. Cryptocurrency data is current for 15 minutes after successful snapshot acquisition and validation, then stale. Clients retain their last successful complete snapshot without age-based deletion in v1, and restart never makes it current.
+
+**Rationale**: These explicit source-aware conditions remove ambiguity between expected publication schedules, unavailable current data, and local offline cache. Keeping the policy canonical in the specification and applying it to the plan, model, API responses, and both clients prevents divergent interpretations.
+
+**Alternatives considered**: A single generic time-to-live for all providers or treating every prior rate as fallback. Both would mislabel expected BNM weekend data or misrepresent stale BNM/crypto values.
+
+## Decision: Validate and replace complete snapshots atomically
+
+**Decision**: A previously successful snapshot is usable only if readable, complete for all required currencies, and every required entry has a positive valid rate, provider provenance, and effective timestamp. Assemble and validate a new complete candidate before atomically making it active. Missing provider entries may come only from an explicitly permitted fallback or a previously successful usable entry. Reused entries retain their original effective timestamp and correct provider, freshness, and fallback-used metadata. A failed or incomplete refresh preserves the previous complete usable snapshot; if none exists, the product reports rates unavailable.
+
+**Rationale**: This preserves the existing snapshot consistency boundary and prevents partial provider results or corrupted cache data from producing mixed or misleading values.
+
+**Alternatives considered**: Replacing entries incrementally, resetting reused timestamps to refresh time, or accepting partial snapshots. These alternatives break consistency or obscure rate age and provenance.
 
 ## Decision: Normalize all monetary conversion through decimal arithmetic and a common internal representation
 
