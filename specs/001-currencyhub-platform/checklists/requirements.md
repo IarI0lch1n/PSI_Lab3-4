@@ -31,4 +31,6 @@
 
 ## Notes
 
+- Reassessed after the freshness/fallback refinement: all checklist items pass. The canonical policy defines BNM publication-day fallback, the 15-minute cryptocurrency freshness window, persistent local-cache behavior, snapshot usability, and refresh replacement/preservation outcomes.
+- The duplicated snapshot/provenance definitions were consolidated; feature requirements retain their scenario-specific provenance obligations and reference the canonical policy.
 - This specification is ready to proceed to /speckit-plan after stakeholder review.
