@@ -20,10 +20,10 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 **Purpose**: Create the three project workspaces and safe local configuration foundations.
 
-- [ ] T001 [P] Initialize the FastAPI backend package, pytest configuration, Alembic environment, and application entry point in `backend/requirements.txt`, `backend/pytest.ini`, `backend/alembic/env.py`, and `backend/app/main.py`
+- [x] T001 [P] Initialize the FastAPI backend package, pytest configuration, Alembic environment, and application entry point in `backend/requirements.txt`, `backend/pytest.ini`, `backend/alembic/env.py`, and `backend/app/main.py`
 - [ ] T002 [P] Scaffold the Angular application and its test/build configuration in `web/package.json`, `web/angular.json`, and `web/src/app/app-routing.module.ts`
 - [ ] T003 [P] Scaffold the Flutter application and analyzer/test configuration in `mobile/pubspec.yaml`, `mobile/analysis_options.yaml`, and `mobile/lib/main.dart`
-- [ ] T004 Add placeholder-only SQL Server, BNM, CoinGecko-compatible provider, and CORS settings plus secret exclusions in `backend/.env.example` and `.gitignore`
+- [x] T004 Add placeholder-only SQL Server, BNM, CoinGecko-compatible provider, and CORS settings plus secret exclusions in `backend/.env.example` and `.gitignore`
 
 ---
 
