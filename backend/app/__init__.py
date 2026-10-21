@@ -1,0 +1,1 @@
+"""CurrencyHub backend application package."""
