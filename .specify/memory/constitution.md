@@ -1,50 +1,219 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: 1.1.0 -> 2.0.0
+- Modified principles: IV. Collaboration and Review (solo self-review permitted with
+  documented verification and unresolved-critical-findings gate)
+- Added sections: none
+- Removed sections: none
+- Follow-up TODOs: none
+-->
+
+# PSI Lab 3-4 Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Clarity and Intent
+All work MUST begin with a clear problem statement, a defined outcome, and explicit acceptance criteria. Scope, constraints, and assumptions MUST be stated before implementation begins so that decisions remain traceable to user need and project intent.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Evidence-Driven Change
+Every significant decision MUST be grounded in observable evidence such as requirements, test results, logs, metrics, or direct verification. Changes without proof of impact are not considered valid until they are validated in context.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Quality Before Delivery
+Features, fixes, and configuration changes MUST satisfy agreed acceptance criteria and preserve the reliability of the existing system. No work is complete until the relevant verification has been performed and the result is recorded.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Collaboration and Review
+All work MUST undergo a documented review before it is merged or handed off.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+When more than one project contributor exists, the review MUST be performed by
+another contributor.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+For an individual/solo project, a documented self-review is permitted instead.
+The self-review MUST verify:
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+- specification and implementation consistency
+- acceptance criteria
+- automated test results
+- correctness
+- safety
+- maintainability
+- scope compliance
+- unresolved specification-analysis findings
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+A solo-project review MUST record its outcome before merge or handoff and MUST
+not ignore unresolved CRITICAL findings.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Review feedback or self-review findings that identify correctness, safety,
+maintainability, or scope concerns MUST be resolved before completion.
+
+### V. Change Safety and Maintainability
+Changes MUST be small, readable, and explainable. Complexity MUST be justified and documented, and any added dependency, risk, or migration requirement MUST be addressed before release.
+
+## CurrencyHub Architecture and Technology Constraints
+
+### Technology Stack
+The project MUST be implemented as one full-stack currency conversion and analytics system with the following technology boundaries:
+
+- The backend MUST use Python 3, FastAPI, SQLAlchemy 2, Microsoft SQL Server, Alembic migrations, and pytest.
+- The web client MUST use Angular and TypeScript and MUST be a responsive web application.
+- The mobile client MUST use Flutter and Dart, with Android as the primary target platform.
+- The mobile client MUST run in Android Studio Emulator for development and verification.
+- Both clients MUST use the same Python REST API.
+- Neither frontend MAY connect directly to SQL Server.
+- Neither frontend MAY directly depend on third-party API credentials.
+
+### Architecture
+The backend MUST follow Clean Architecture with the following conceptual layers:
+
+- Domain
+- Application
+- Infrastructure
+- API
+
+Business logic MUST NOT directly depend on FastAPI, SQLAlchemy, Microsoft SQL Server, BNM, CoinGecko, or other infrastructure frameworks.
+
+Object-Oriented Programming MUST be used where appropriate. All SOLID principles MUST be respected:
+
+- Single Responsibility Principle
+- Open/Closed Principle
+- Liskov Substitution Principle
+- Interface Segregation Principle
+- Dependency Inversion Principle
+
+Dependency Injection MUST be used. Database access MUST use repository abstractions. External rate providers MUST be accessed through abstractions.
+
+### Design Patterns
+Patterns MUST solve actual architectural problems and MUST NOT be included only for demonstration. The architecture SHOULD use:
+
+- Adapter for BNM and cryptocurrency provider integrations
+- Strategy for rate resolution and fallback behavior
+- Factory Method for constructing or selecting exchange-rate providers
+- Facade for exposing currency, conversion, and analytics use cases to the API
+- Repository pattern for persistence
+- Unit of Work where transactional consistency requires it
+
+### Data Sources and Currency Coverage
+Fiat exchange rates MUST be sourced from the National Bank of Moldova (BNM). Cryptocurrency rates MUST be sourced from CoinGecko or another explicitly documented cryptocurrency API.
+
+Supported currencies MUST include at minimum:
+
+Fiat:
+- MDL
+- USD
+- EUR
+- RUB
+- CNY
+- GBP
+- RON
+- UAH
+- CHF
+- JPY
+
+Crypto:
+- BTC
+- ETH
+- SOL
+- BNB
+- XRP
+- ADA
+- DOGE
+- USDT
+
+### Financial Correctness
+All monetary calculations MUST use decimal arithmetic. Binary floating-point MUST NOT be used for financial calculations.
+
+All exchange rates MUST be normalized through a consistent internal representation. The conversion engine MUST support:
+
+- fiat → fiat
+- fiat → crypto
+- crypto → fiat
+- crypto → crypto
+- same currency → same currency
+
+Same-currency conversion MUST return the original amount.
+
+Invalid monetary input includes:
+
+- empty input
+- zero
+- negative values
+- non-numeric input
+
+Such values MUST NOT be converted.
+
+### Functional Requirements
+The system MUST provide the following capabilities:
+
+1. Classic currency converter with amount, source currency, target currency, result, rate date, and data source.
+2. Multi-currency converter where the user enters a value into one currency field and all other visible currencies are recalculated using the same rate snapshot.
+3. Current rates screen.
+4. Seven-day analytics.
+5. Thirty-day analytics.
+
+Analytics MUST contain:
+
+- time-series values
+- minimum
+- maximum
+- average
+- absolute change
+- percentage change
+- trend: growth, decline, or unchanged
+
+### Persistence
+Current and historical rate data MUST be persisted in Microsoft SQL Server. The database MUST retain enough data to build both 7-day and 30-day analytics. Schema evolution MUST be managed through Alembic migrations.
+
+### Resilience and Offline Support
+External provider failures MUST NOT crash the backend. The last successfully obtained rate data MUST be persisted and available as fallback data.
+
+When BNM has no rate for a weekend or holiday, the system MUST use the latest valid previous rate and clearly identify it as fallback data. Flutter MUST maintain a local cache of the last successful snapshot. The Angular web application MUST maintain an appropriate local cache of the last successful snapshot.
+
+When cached data is displayed, the client MUST clearly show that the data is cached or stale and MUST display the timestamp or date of the cached data.
+
+### Security
+Secrets MUST NOT be committed to Git. Database credentials and external API credentials MUST be provided through environment configuration.
+
+SQL Server credentials MUST NOT exist in frontend code. Third-party API secrets MUST remain on the backend.
+
+### Testability
+Tests MUST NOT require live BNM or CoinGecko services. External providers MUST be replaceable by mocks, stubs, or fake implementations.
+
+Backend unit tests MUST cover at minimum:
+
+- BNM response parsing
+- cryptocurrency provider response parsing
+- direct conversion
+- reverse conversion
+- fiat/crypto conversion
+- same-currency conversion
+- invalid input
+- empty or malformed provider response
+- cached or fallback behavior
+- 7-day statistics
+- 30-day statistics
+- empty historical datasets
+
+Important frontend validation and presentation logic MUST also be testable.
+
+### Git Workflow
+Specifications MUST be committed before implementation. The project MUST use meaningful development branches, including separate stages for:
+
+- specifications
+- backend
+- database
+- web frontend
+- mobile frontend
+- analytics
+- offline/cache
+- tests
+
+Changes MUST be integrated into main through Pull Requests. Commit history MUST demonstrate the development process.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This Constitution governs project decision-making and supersedes informal practices that conflict with it. Amendments MUST be proposed in writing, reviewed for impact, and approved before taking effect. Any material change MUST include a clear rationale, any migration or compatibility implications, and a version update.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+The versioning policy is semantic versioning: MAJOR changes remove or redefine core governance requirements, MINOR changes add or materially expand principles or sections, and PATCH changes clarify or refine existing guidance without changing intent. The project MUST record the ratification date and the amendment date in the constitution header.
+
+Compliance review occurs at the same points as normal project review: pull requests, milestones, and release readiness checks. The documented review required by Principle IV MUST verify alignment with this Constitution and record unresolved exceptions; a solo-project review MUST NOT ignore unresolved CRITICAL findings.
+
+**Version**: 2.0.0 | **Ratified**: 2026-10-02 | **Last Amended**: 2026-10-21
