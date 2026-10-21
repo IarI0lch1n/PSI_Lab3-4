@@ -24,7 +24,7 @@ The architecture continues to use Clean Architecture across Domain, Application,
 
 **Project Type**: Full-stack service with shared API, web frontend, and mobile frontend
 
-**Performance Goals**: Rate refresh and conversion requests should remain fast under normal conditions; cached snapshots should render immediately when the backend is unavailable; analytics should be computed from persisted normalized entries without creating redundant N×N pair storage
+**Performance Goals**: The standard user conversion flow must complete in under 30 seconds, measured from when the converter is ready for user input until the conversion result and rate context are visible; cached snapshots should be displayable from local persisted data without requiring a successful network refresh; analytics should be computed from persisted normalized entries without creating redundant N×N pair storage
 
 **Constraints**: Decimal-safe arithmetic only; no floating-point conversion logic; no direct SQL Server access from frontend; no third-party credentials in frontend code; same-screen values must come from one complete usable validated snapshot; invalid input never converts; cached, fallback, and stale data must be distinguished and labeled according to the canonical specification policy
 
