@@ -32,7 +32,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 **Purpose**: Establish domain, persistence, provider, API, and shared-client foundations required by all stories.
 
 - [x] T005 Implement environment-backed backend settings, structured logging, and local CORS configuration in `backend/app/core/config/settings.py` and `backend/app/core/logging/logger.py`
-- [ ] T006 [P] Define currency-type and primary freshness-state enums; `freshness_state` MUST allow only `live`, `fallback`, or `cached`, with stale represented separately, in `backend/app/domain/enums/currency_type.py` and `backend/app/domain/enums/freshness_state.py`
+- [x] T006 [P] Define currency-type and primary freshness-state enums; `freshness_state` MUST allow only `live`, `fallback`, or `cached`, with stale represented separately, in `backend/app/domain/enums/currency_type.py` and `backend/app/domain/enums/freshness_state.py`
 - [ ] T007 Create the Currency domain entity with unique code and supported-currency validation in `backend/app/domain/entities/currency.py`
 - [ ] T008 Create RateSnapshot and RateEntry domain entities with normalized MDL values, provider provenance, original effective timestamps, primary freshness state, separate `is_fallback`, and separate source-aware `is_stale` in `backend/app/domain/entities/rate_snapshot.py` and `backend/app/domain/entities/rate_entry.py`
 - [ ] T009 Create Decimal-safe money and normalized-rate value objects with positive-rate and finite-amount validation in `backend/app/domain/value_objects/money.py` and `backend/app/domain/value_objects/normalized_rate.py`
