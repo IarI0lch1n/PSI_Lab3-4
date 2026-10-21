@@ -58,7 +58,8 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
       "provider_type": "fiat",
       "effective_at": "2026-10-02T09:00:00Z",
       "freshness_state": "live",
-      "is_fallback": false
+      "is_fallback": false,
+      "is_stale": false
     },
     {
       "currency": "BTC",
@@ -68,7 +69,8 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
       "provider_type": "crypto",
       "effective_at": "2026-10-02T09:30:00Z",
       "freshness_state": "live",
-      "is_fallback": false
+      "is_fallback": false,
+      "is_stale": false
     }
   ]
 }
@@ -76,7 +78,11 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
 
 **Business rules**:
 - There is no single global source_name or source_type for the snapshot.
-- Each rate entry maintains its own provider, effective timestamp, freshness state, and fallback indicator.
+- Each rate entry maintains its own provider, effective timestamp, primary `freshness_state` (`live`, `fallback`, or `cached`), `is_fallback`, and `is_stale`.
+- `is_stale` is a separate freshness condition and may overlap the primary freshness classification; cached data does not automatically mean fallback.
+- An expected BNM weekend or official non-publishing-day rate may be represented as `freshness_state: "fallback"`, `is_fallback: true`, and `is_stale: false`, retaining the true effective date.
+- An older BNM rate retained when a newer official rate should already be available but cannot be retrieved is cached/stale, not current.
+- A cryptocurrency rate older than 15 minutes after successful acquisition and validation, without a successful refresh, has `is_stale: true`.
 - The snapshot acts as the consistency boundary for all returned values.
 
 ### POST /api/v1/convert
@@ -108,14 +114,16 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
       "provider_name": "BNM",
       "effective_at": "2026-10-02T09:00:00Z",
       "freshness_state": "live",
-      "is_fallback": false
+      "is_fallback": false,
+      "is_stale": false
     },
     "target_rate": {
       "currency": "BTC",
       "provider_name": "CoinGecko",
       "effective_at": "2026-10-02T09:30:00Z",
       "freshness_state": "fallback",
-      "is_fallback": true
+      "is_fallback": true,
+      "is_stale": false
     },
     "snapshot_id": "uuid"
   }
@@ -127,7 +135,8 @@ This contract defines the shared API responsibility for the CurrencyHub backend.
 - Same-currency conversion must return the original amount.
 - The conversion must use one consistent snapshot and the exact rate entries used for the request.
 - `rate_value` is the derived pair rate; a mixed-provider conversion must not be labeled with one provider, timestamp, or freshness state.
-- `rate_context.source_rate` and `rate_context.target_rate` each retain currency, provider_name, effective_at, freshness_state, and is_fallback; `snapshot_id` identifies the validated snapshot used.
+- `rate_context.source_rate` and `rate_context.target_rate` each retain currency, provider_name, effective_at, freshness_state, is_fallback, and is_stale; `snapshot_id` identifies the validated snapshot used.
+- Each leg's staleness and fallback status follow the canonical source-specific policy independently; cached data does not automatically mean fallback.
 
 ### GET /api/v1/history
 
@@ -157,14 +166,16 @@ Query parameters:
           "provider_name": "BNM",
           "effective_at": "2026-09-26T09:00:00Z",
           "freshness_state": "live",
-          "is_fallback": false
+          "is_fallback": false,
+          "is_stale": false
         },
         "target_rate": {
           "currency": "BTC",
           "provider_name": "CoinGecko",
           "effective_at": "2026-09-26T09:30:00Z",
           "freshness_state": "live",
-          "is_fallback": false
+          "is_fallback": false,
+          "is_stale": false
         },
         "snapshot_id": "uuid"
       }
@@ -178,14 +189,16 @@ Query parameters:
           "provider_name": "BNM",
           "effective_at": "2026-09-25T09:00:00Z",
           "freshness_state": "fallback",
-          "is_fallback": true
+          "is_fallback": true,
+          "is_stale": false
         },
         "target_rate": {
           "currency": "BTC",
           "provider_name": "CoinGecko",
           "effective_at": "2026-09-27T09:30:00Z",
           "freshness_state": "live",
-          "is_fallback": false
+          "is_fallback": false,
+          "is_stale": false
         },
         "snapshot_id": "uuid"
       }
@@ -210,7 +223,7 @@ Query parameters:
 
 **Business rules**:
 - Historical values are derived from normalized rate entries, not from duplicated pairwise storage.
-- Every point retains provider, effective timestamp, freshness state, and fallback status for both the base and quote rate entries, plus the snapshot_id used to derive the pair value.
+- Every point retains provider, effective timestamp, primary freshness state, `is_fallback`, and `is_stale` for both the base and quote rate entries, plus the snapshot_id used to derive the pair value.
 - Empty historical datasets must return an explicit empty state.
 
 ### GET /api/v1/analytics
@@ -250,6 +263,7 @@ Query parameters:
       "fallback": 1,
       "cached": 0
     },
+    "stale_entry_count": 0,
     "fallback_entry_count": 1
   },
   "empty": false
@@ -260,7 +274,9 @@ Query parameters:
 - Trend is derived from the first and last available values.
 - Summary values must include minimum, maximum, average, absolute change, percentage change, and trend.
 - Empty historical datasets must return a clear empty-state response instead of failing.
-- `provenance_summary` reports distinct provider sets by pair side and counts freshness states across the two rate entries for each point; it must not reduce mixed provenance to one `source_state`.
+- `provenance_summary` reports distinct provider sets by pair side and primary freshness counts across the two rate entries for each complete point; it must not reduce mixed provenance to one `source_state`.
+- `rate_entry_freshness_counts` classifies each entry exactly once as `live`, `fallback`, or `cached`. `stale_entry_count` reports entries with `is_stale: true` separately and may overlap those primary counts where the canonical policy permits.
+- `fallback_entry_count` counts entries with `is_fallback: true`; cached data does not automatically count as fallback.
 
 ### POST /api/v1/rates/refresh
 
@@ -277,16 +293,21 @@ Query parameters:
   "updated": true,
   "rate_count": 18,
   "freshness_summary": {
-    "live": 16,
-    "fallback": 2,
-    "cached": 0
+    "rate_entry_freshness_counts": {
+      "live": 16,
+      "fallback": 2,
+      "cached": 0
+    },
+    "stale_entry_count": 0,
+    "fallback_entry_count": 2
   }
 }
 ```
 
 **Business rules**:
-- A refresh must not partially replace the active snapshot.
-- The response must explicitly summarize how many entries were live, fallback, or cached.
+- A refresh must not partially replace the active snapshot; an incomplete or failed refresh preserves the previous complete usable snapshot.
+- `freshness_summary.rate_entry_freshness_counts` classifies each entry once by primary freshness state and reports `stale_entry_count` separately; stale may overlap the primary counts where the canonical policy permits.
+- `fallback_entry_count` counts entries with `is_fallback: true`; cached entries do not automatically count as fallback.
 
 ### GET /api/v1/health
 
@@ -315,6 +336,9 @@ Query parameters:
 ## Shared notes
 
 - All UI screens must show source and freshness metadata from the API or from the local cached snapshot, never from hidden internal state.
+- For every rate entry in latest rates, conversion `rate_context`, and history `rate_context`, expose `freshness_state`, `is_fallback`, and `is_stale`, while preserving `provider_name` and the original `effective_at`.
+- The canonical meanings are consistent across endpoints: expected BNM weekend/official non-publishing-day fallback may be `fallback` with `is_fallback: true` and `is_stale: false`; an older BNM rate retained when newer expected data cannot be retrieved is cached/stale rather than current; a cryptocurrency rate older than 15 minutes without successful refresh has `is_stale: true`.
+- Cached status alone does not imply `is_fallback: true`.
 - The latest-rate response supports different providers and effective dates within the same snapshot because each rate entry carries independent metadata.
 - Pair conversions and historical pair points preserve provenance independently for both rate entries; analytics report aggregate provenance and freshness rather than one potentially misleading source state.
 - Empty-state responses are explicit for both history and analytics when the requested pair has no data in the selected window.
