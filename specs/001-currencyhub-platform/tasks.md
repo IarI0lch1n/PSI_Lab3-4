@@ -20,10 +20,10 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 **Purpose**: Create the three project workspaces and safe local configuration foundations.
 
-- [ ] T001 [P] Initialize the FastAPI backend package, pytest configuration, Alembic environment, and application entry point in `backend/requirements.txt`, `backend/pytest.ini`, `backend/alembic/env.py`, and `backend/app/main.py`
+- [x] T001 [P] Initialize the FastAPI backend package, pytest configuration, Alembic environment, and application entry point in `backend/requirements.txt`, `backend/pytest.ini`, `backend/alembic/env.py`, and `backend/app/main.py`
 - [ ] T002 [P] Scaffold the Angular application and its test/build configuration in `web/package.json`, `web/angular.json`, and `web/src/app/app-routing.module.ts`
 - [ ] T003 [P] Scaffold the Flutter application and analyzer/test configuration in `mobile/pubspec.yaml`, `mobile/analysis_options.yaml`, and `mobile/lib/main.dart`
-- [ ] T004 Add placeholder-only SQL Server, BNM, CoinGecko-compatible provider, and CORS settings plus secret exclusions in `backend/.env.example` and `.gitignore`
+- [x] T004 Add placeholder-only SQL Server, BNM, CoinGecko-compatible provider, and CORS settings plus secret exclusions in `backend/.env.example` and `.gitignore`
 
 ---
 
@@ -31,12 +31,12 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 **Purpose**: Establish domain, persistence, provider, API, and shared-client foundations required by all stories.
 
-- [ ] T005 Implement environment-backed backend settings, structured logging, and local CORS configuration in `backend/app/core/config/settings.py` and `backend/app/core/logging/logger.py`
-- [ ] T006 [P] Define currency-type and primary freshness-state enums; `freshness_state` MUST allow only `live`, `fallback`, or `cached`, with stale represented separately, in `backend/app/domain/enums/currency_type.py` and `backend/app/domain/enums/freshness_state.py`
-- [ ] T007 Create the Currency domain entity with unique code and supported-currency validation in `backend/app/domain/entities/currency.py`
-- [ ] T008 Create RateSnapshot and RateEntry domain entities with normalized MDL values, provider provenance, original effective timestamps, primary freshness state, separate `is_fallback`, and separate source-aware `is_stale` in `backend/app/domain/entities/rate_snapshot.py` and `backend/app/domain/entities/rate_entry.py`
-- [ ] T009 Create Decimal-safe money and normalized-rate value objects with positive-rate and finite-amount validation in `backend/app/domain/value_objects/money.py` and `backend/app/domain/value_objects/normalized_rate.py`
-- [ ] T010 Define currency/rate repository, rate-provider, and unit-of-work interfaces in `backend/app/domain/interfaces/currency_repository.py`, `backend/app/domain/interfaces/rate_repository.py`, `backend/app/domain/interfaces/rate_provider.py`, and `backend/app/domain/interfaces/unit_of_work.py`
+- [x] T005 Implement environment-backed backend settings, structured logging, and local CORS configuration in `backend/app/core/config/settings.py` and `backend/app/core/logging/logger.py`
+- [x] T006 [P] Define currency-type and primary freshness-state enums; `freshness_state` MUST allow only `live`, `fallback`, or `cached`, with stale represented separately, in `backend/app/domain/enums/currency_type.py` and `backend/app/domain/enums/freshness_state.py`
+- [x] T007 Create the Currency domain entity with unique code and supported-currency validation in `backend/app/domain/entities/currency.py`
+- [x] T008 Create RateSnapshot and RateEntry domain entities with normalized MDL values, provider provenance, original effective timestamps, primary freshness state, separate `is_fallback`, and separate source-aware `is_stale` in `backend/app/domain/entities/rate_snapshot.py` and `backend/app/domain/entities/rate_entry.py`
+- [x] T009 Create Decimal-safe money and normalized-rate value objects with positive-rate and finite-amount validation in `backend/app/domain/value_objects/money.py` and `backend/app/domain/value_objects/normalized_rate.py`
+- [x] T010 Define currency/rate repository, rate-provider, and unit-of-work interfaces in `backend/app/domain/interfaces/currency_repository.py`, `backend/app/domain/interfaces/rate_repository.py`, `backend/app/domain/interfaces/rate_provider.py`, and `backend/app/domain/interfaces/unit_of_work.py`
 - [ ] T011 Map currencies, snapshots, rate entries, and provider sources to SQLAlchemy models without adding pairwise historical-rate storage or persisting derived `is_stale` in `backend/app/infrastructure/database/models.py`
 - [ ] T012 Create the initial Alembic migration for currencies, rate_snapshots, rate_entries, and provider_sources and seed the 18 supported currencies in `backend/alembic/versions/001_initial_rate_schema.py` and `backend/app/infrastructure/database/seed_currencies.py`
 - [ ] T013 Implement SQL Server repositories and transactional unit-of-work behavior that can atomically persist and activate complete snapshots in `backend/app/infrastructure/repositories/currency_repository.py`, `backend/app/infrastructure/repositories/rate_repository.py`, and `backend/app/infrastructure/database/unit_of_work.py`
