@@ -46,7 +46,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 - [x] T017 Configure FastAPI dependency injection, common error handling, startup, and provider/repository wiring in `backend/app/api/dependencies.py`, `backend/app/api/exception_handlers.py`, and `backend/app/main.py`
 - [ ] T018 [P] Define shared typed rate, snapshot, and provenance models, including `freshness_state`, `is_fallback`, and `is_stale`, plus an Angular HTTP client in `web/src/app/core/models/rate.models.ts` and `web/src/app/core/api/rates-api.service.ts`
 - [ ] T019 [P] Define shared rate, snapshot, and provenance models, including `freshness_state`, `is_fallback`, and `is_stale`, plus a Flutter HTTP client in `mobile/lib/core/models/rate_models.dart` and `mobile/lib/core/api/rates_api_client.dart`
-- [ ] T020 Create reusable fake BNM/CoinGecko-compatible providers and isolated SQL Server repository test fixtures; configure tests so no automated test contacts live providers, in `backend/tests/conftest.py` and `backend/tests/fixtures/fake_rate_providers.py`
+- [x] T020 Create reusable fake BNM/CoinGecko-compatible providers and isolated SQL Server repository test fixtures; configure tests so no automated test contacts live providers, in `backend/tests/conftest.py` and `backend/tests/fixtures/fake_rate_providers.py`
 
 **Checkpoint**: Shared infrastructure is ready; story phases can begin. Canonical freshness, fallback, and snapshot-usability rules are represented in shared domain types and provider-independent test fixtures.
 
