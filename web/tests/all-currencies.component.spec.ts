@@ -72,7 +72,13 @@ describe('AllCurrenciesComponent', () => {
     select.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(text()).toContain('1');
+    const cards = fixture.nativeElement.querySelectorAll(
+      '.currency-card',
+    ) as NodeListOf<HTMLElement>;
+    expect(cards[1].querySelector('strong')?.textContent).toBe('1');
+    expect(cards[0].querySelector('strong')?.textContent).toBe(
+      '0.90987734027236214377907842268340578021297361773117276836394035447005055138438761',
+    );
     expect(text()).toContain('Snapshot collected');
     expect(text()).toContain('2026-10-28T12:00:00Z');
     expect(api.getLatestRates).toHaveBeenCalledTimes(1);
@@ -91,6 +97,63 @@ describe('AllCurrenciesComponent', () => {
     expect(text()).toContain('Fallback used');
     expect(text()).toContain('Cached');
     expect(text()).toContain('Stale');
+    const cards = fixture.nativeElement.querySelectorAll(
+      '.currency-card',
+    ) as NodeListOf<HTMLElement>;
+    expect(cards[0].textContent).toContain('BNM');
+    expect(cards[0].textContent).toContain('Live');
+    expect(cards[0].textContent).not.toContain('Fallback');
+    expect(cards[0].textContent).not.toContain('Stale');
+    expect(cards[1].textContent).toContain('Fallback used');
+    expect(cards[1].textContent).not.toContain('Stale');
+    expect(cards[2].textContent).toContain('CoinGecko');
+    expect(cards[2].textContent).toContain('Cached');
+    expect(cards[2].textContent).toContain('Stale');
+    expect(cards[2].textContent).not.toContain('Fallback');
+  });
+
+  it('does not infer fallback or stale flags from cached status', () => {
+    api.getLatestRates.mockReturnValue(
+      of({
+        ...snapshot,
+        rates: snapshot.rates.map((entry) => ({
+          ...entry,
+          freshness_state: 'cached',
+          is_fallback: false,
+          is_stale: false,
+        })),
+      }),
+    );
+    render();
+    expect(text()).toContain('Cached');
+    expect(text()).not.toContain('Fallback used');
+    expect(text()).not.toContain('Stale');
+  });
+
+  it.each(['', '0', '-1', 'invalid'])('does not calculate invalid input %s', (value) => {
+    render();
+    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.currency-card').length).toBe(0);
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
+  it.each([
+    { ...snapshot, rates: snapshot.rates.slice(0, 2) },
+    { ...snapshot, rates: [snapshot.rates[0], snapshot.rates[0], snapshot.rates[2]] },
+    { ...snapshot, snapshot_id: '' },
+    { ...snapshot, captured_at: 'invalid' },
+    ...['provider_name', 'effective_at', 'normalized_rate_to_mdl'].map((field) => ({
+      ...snapshot,
+      rates: [{ ...snapshot.rates[0], [field]: '' }, ...snapshot.rates.slice(1)],
+    })),
+  ])('rejects incomplete or invalid snapshots', (invalid) => {
+    api.getLatestRates.mockReturnValue(of(invalid));
+    render();
+    expect(text()).toContain('Comparison is unavailable');
+    expect(fixture.nativeElement.querySelectorAll('.currency-card').length).toBe(0);
   });
 
   function text(): string {

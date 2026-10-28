@@ -82,18 +82,43 @@ export class AllCurrenciesComponent implements OnInit {
   }
 
   private setReadyState(currenciesResponse: CurrenciesResponse, snapshot: RateSnapshot): void {
-    const currencies = currenciesResponse.currencies.filter((currency) => currency.is_supported);
-    const supportedCodes = new Set(currencies.map((currency) => currency.code));
-    if (
-      snapshot.rates.length === 0 ||
-      snapshot.rates.some((rate) => !supportedCodes.has(rate.currency))
-    ) {
+    try {
+      const currencies = currenciesResponse.currencies.filter((currency) => currency.is_supported);
+      const supportedCodes = new Set(currencies.map((currency) => currency.code));
+      const rateCodes = new Set(snapshot.rates.map((rate) => rate.currency));
+      if (
+        currencies.length === 0 ||
+        supportedCodes.size !== currencies.length ||
+        !snapshot.snapshot_id?.trim() ||
+        !this.validTimestamp(snapshot.captured_at) ||
+        rateCodes.size !== snapshot.rates.length ||
+        rateCodes.size !== supportedCodes.size ||
+        currencies.some((currency) => !currency.name?.trim() || !rateCodes.has(currency.code)) ||
+        snapshot.rates.some(
+          (rate) =>
+            !supportedCodes.has(rate.currency) ||
+            !rate.provider_name?.trim() ||
+            !this.validTimestamp(rate.effective_at) ||
+            !['live', 'fallback', 'cached'].includes(rate.freshness_state) ||
+            typeof rate.is_fallback !== 'boolean' ||
+            typeof rate.is_stale !== 'boolean' ||
+            typeof rate.normalized_rate_to_mdl !== 'string' ||
+            rate.provider_type !==
+              currencies.find((currency) => currency.code === rate.currency)?.type,
+        )
+      ) {
+        throw new Error('Incomplete or invalid snapshot.');
+      }
+      this.calculator.calculate('1', snapshot.rates[0].currency, snapshot.rates);
+      this.sourceCurrency.set(snapshot.rates[0].currency);
+      this.state.set({ status: 'ready', currencies, snapshot });
+    } catch {
       this.state.set({ status: 'error' });
-      return;
     }
+  }
 
-    this.sourceCurrency.set(snapshot.rates[0].currency);
-    this.state.set({ status: 'ready', currencies, snapshot });
+  private validTimestamp(value: string): boolean {
+    return typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Date.parse(value));
   }
 
   private validateAmount(value: string): string | null {
