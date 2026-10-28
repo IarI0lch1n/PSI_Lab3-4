@@ -73,7 +73,16 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('CurrencyHub')),
+      appBar: AppBar(
+        title: const Text('CurrencyHub'),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pushNamed('/converter'),
+            icon: const Icon(Icons.calculate_outlined),
+            label: const Text('Converter'),
+          ),
+        ],
+      ),
       body: SafeArea(child: _buildContent(context)),
     );
   }
