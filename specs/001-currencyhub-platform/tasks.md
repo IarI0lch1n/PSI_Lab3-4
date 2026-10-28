@@ -22,7 +22,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 - [x] T001 [P] Initialize the FastAPI backend package, pytest configuration, Alembic environment, and application entry point in `backend/requirements.txt`, `backend/pytest.ini`, `backend/alembic/env.py`, and `backend/app/main.py`
 - [x] T002 [P] Scaffold the Angular application and its test/build configuration in `web/package.json`, `web/angular.json`, and `web/src/app/app-routing.module.ts`
-- [ ] T003 [P] Scaffold the Flutter application and analyzer/test configuration in `mobile/pubspec.yaml`, `mobile/analysis_options.yaml`, and `mobile/lib/main.dart`
+- [x] T003 [P] Scaffold the Flutter application and analyzer/test configuration in `mobile/pubspec.yaml`, `mobile/analysis_options.yaml`, and `mobile/lib/main.dart`
 - [x] T004 Add placeholder-only SQL Server, BNM, CoinGecko-compatible provider, and CORS settings plus secret exclusions in `backend/.env.example` and `.gitignore`
 
 ---
@@ -45,7 +45,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 - [x] T016 Implement provider construction and snapshot assembly that validates readability, positive valid rates, all required currencies, provider provenance, and effective timestamps; accept missing data only from permitted fallback or a previously successful usable entry, preserving reused-entry timestamps and metadata, in `backend/app/infrastructure/providers/provider_factory.py` and `backend/app/application/services/snapshot_service.py`
 - [x] T017 Configure FastAPI dependency injection, common error handling, startup, and provider/repository wiring in `backend/app/api/dependencies.py`, `backend/app/api/exception_handlers.py`, and `backend/app/main.py`
 - [x] T018 [P] Define shared typed rate, snapshot, and provenance models, including `freshness_state`, `is_fallback`, and `is_stale`, plus an Angular HTTP client in `web/src/app/core/models/rate.models.ts` and `web/src/app/core/api/rates-api.service.ts`
-- [ ] T019 [P] Define shared rate, snapshot, and provenance models, including `freshness_state`, `is_fallback`, and `is_stale`, plus a Flutter HTTP client in `mobile/lib/core/models/rate_models.dart` and `mobile/lib/core/api/rates_api_client.dart`
+- [x] T019 [P] Define shared rate, snapshot, and provenance models, including `freshness_state`, `is_fallback`, and `is_stale`, plus a Flutter HTTP client in `mobile/lib/core/models/rate_models.dart` and `mobile/lib/core/api/rates_api_client.dart`
 - [x] T020 Create reusable fake BNM/CoinGecko-compatible providers and isolated SQL Server repository test fixtures; configure tests so no automated test contacts live providers, in `backend/tests/conftest.py` and `backend/tests/fixtures/fake_rate_providers.py`
 
 **Checkpoint**: Shared infrastructure is ready; story phases can begin. Canonical freshness, fallback, and snapshot-usability rules are represented in shared domain types and provider-independent test fixtures.
