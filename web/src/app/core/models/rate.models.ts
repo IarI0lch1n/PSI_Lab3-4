@@ -39,3 +39,18 @@ export interface RateContext {
   readonly target_rate: RateProvenance;
   readonly snapshot_id: string;
 }
+
+export interface ConversionRequest {
+  readonly amount: string;
+  readonly source_currency: string;
+  readonly target_currency: string;
+}
+
+export interface ConversionResponse {
+  readonly source_amount: string;
+  readonly converted_amount: string;
+  readonly source_currency: string;
+  readonly target_currency: string;
+  readonly rate_value: string;
+  readonly rate_context: RateContext;
+}

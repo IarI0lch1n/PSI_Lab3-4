@@ -1,0 +1,215 @@
+<main class="converter-page">
+  <header class="page-header">
+    <p class="brand">CurrencyHub</p>
+    <h1>Currency Converter</h1>
+    <p class="intro">
+      Convert an amount using the latest validated snapshot. Each currency rate keeps its own
+      provider and freshness context.
+    </p>
+  </header>
+
+  @if (currencyState() === 'loading') {
+    <section class="message-panel" aria-live="polite" aria-busy="true">
+      <span class="loading-mark" aria-hidden="true"></span>
+      <p>Loading supported currencies…</p>
+    </section>
+  } @else if (currencyState() === 'error') {
+    <section class="message-panel error-panel" role="alert">
+      <h2>Currencies are unavailable.</h2>
+      <p>We couldn’t load the supported currency list.</p>
+      <button type="button" class="primary-button" (click)="loadCurrencies()">Retry</button>
+    </section>
+  } @else {
+    @if (currencies().length === 0) {
+      <section class="message-panel error-panel" role="alert">
+        <h2>No supported currencies are available.</h2>
+      </section>
+    } @else {
+      <form class="converter-form" (submit)="convert($event)">
+        <div class="form-field">
+          <label for="amount">Amount</label>
+          <input
+            id="amount"
+            name="amount"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            [value]="amount()"
+            [attr.aria-invalid]="amountError() !== null"
+            aria-describedby="amount-help amount-error"
+            (input)="setAmount($event)"
+          />
+          <p id="amount-help" class="field-help">Enter a positive decimal amount.</p>
+          @if (amountError(); as message) {
+            <p id="amount-error" class="field-error" role="alert">
+              {{ message }}
+            </p>
+          }
+        </div>
+
+        <div class="currency-fields">
+          <div class="form-field">
+            <label for="source-currency">From</label>
+            <select
+              id="source-currency"
+              name="source-currency"
+              [value]="sourceCurrency()"
+              (change)="setSourceCurrency($event)"
+            >
+              <option value="">Select a currency</option>
+              @for (currency of currencies(); track currency.code) {
+                <option [value]="currency.code">{{ currencyLabel(currency) }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="target-currency">To</label>
+            <select
+              id="target-currency"
+              name="target-currency"
+              [value]="targetCurrency()"
+              (change)="setTargetCurrency($event)"
+            >
+              <option value="">Select a currency</option>
+              @for (currency of currencies(); track currency.code) {
+                <option [value]="currency.code">{{ currencyLabel(currency) }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="primary-button" [disabled]="!canConvert()">
+          @if (conversionState().status === 'converting') {
+            Converting…
+          } @else {
+            Convert
+          }
+        </button>
+      </form>
+
+      @let resultState = conversionState();
+      @if (resultState.status === 'converting') {
+        <section class="message-panel" aria-live="polite" aria-busy="true">
+          <span class="loading-mark" aria-hidden="true"></span>
+          <p>Converting…</p>
+        </section>
+      } @else if (resultState.status === 'error') {
+        <section class="message-panel error-panel" role="alert">
+          <h2>Conversion unavailable</h2>
+          <p>{{ resultState.message }}</p>
+        </section>
+      } @else if (resultState.status === 'success') {
+        <section class="result-panel" aria-live="polite" aria-label="Conversion result">
+          <p class="section-label">Conversion result</p>
+          <p class="conversion-equation">
+            {{ resultState.result.source_amount }}
+            {{ resultState.result.source_currency }}
+            <span aria-hidden="true">=</span>
+            <strong>
+              {{ resultState.result.converted_amount }}
+              {{ resultState.result.target_currency }}
+            </strong>
+          </p>
+          <p class="pair-rate">
+            Pair rate: 1 {{ resultState.result.source_currency }} =
+            {{ resultState.result.rate_value }}
+            {{ resultState.result.target_currency }}
+          </p>
+          <p class="pair-rate-note">
+            Rate value is target-currency units per one source-currency unit.
+          </p>
+          <p class="snapshot-id">
+            Snapshot: <code>{{ resultState.result.rate_context.snapshot_id }}</code>
+          </p>
+
+          <div class="rate-contexts">
+            <article class="context-card" aria-label="Source rate context">
+              <h2>Source rate — {{ resultState.result.rate_context.source_rate.currency }}</h2>
+              <dl class="context-details">
+                <div>
+                  <dt>Provider</dt>
+                  <dd>{{ resultState.result.rate_context.source_rate.provider_name }}</dd>
+                </div>
+                <div>
+                  <dt>Rate effective</dt>
+                  <dd>
+                    <time
+                      [attr.datetime]="resultState.result.rate_context.source_rate.effective_at"
+                    >
+                      {{ resultState.result.rate_context.source_rate.effective_at }}
+                    </time>
+                  </dd>
+                </div>
+              </dl>
+              <div class="freshness">
+                <span
+                  class="freshness-state"
+                  [class.live]="
+                    resultState.result.rate_context.source_rate.freshness_state === 'live'
+                  "
+                  [class.fallback]="
+                    resultState.result.rate_context.source_rate.freshness_state === 'fallback'
+                  "
+                  [class.cached]="
+                    resultState.result.rate_context.source_rate.freshness_state === 'cached'
+                  "
+                >
+                  {{ freshnessLabel(resultState.result.rate_context.source_rate.freshness_state) }}
+                </span>
+                @if (resultState.result.rate_context.source_rate.is_fallback) {
+                  <span class="freshness-detail">Fallback used</span>
+                }
+                @if (resultState.result.rate_context.source_rate.is_stale) {
+                  <span class="freshness-detail stale">Stale</span>
+                }
+              </div>
+            </article>
+
+            <article class="context-card" aria-label="Target rate context">
+              <h2>Target rate — {{ resultState.result.rate_context.target_rate.currency }}</h2>
+              <dl class="context-details">
+                <div>
+                  <dt>Provider</dt>
+                  <dd>{{ resultState.result.rate_context.target_rate.provider_name }}</dd>
+                </div>
+                <div>
+                  <dt>Rate effective</dt>
+                  <dd>
+                    <time
+                      [attr.datetime]="resultState.result.rate_context.target_rate.effective_at"
+                    >
+                      {{ resultState.result.rate_context.target_rate.effective_at }}
+                    </time>
+                  </dd>
+                </div>
+              </dl>
+              <div class="freshness">
+                <span
+                  class="freshness-state"
+                  [class.live]="
+                    resultState.result.rate_context.target_rate.freshness_state === 'live'
+                  "
+                  [class.fallback]="
+                    resultState.result.rate_context.target_rate.freshness_state === 'fallback'
+                  "
+                  [class.cached]="
+                    resultState.result.rate_context.target_rate.freshness_state === 'cached'
+                  "
+                >
+                  {{ freshnessLabel(resultState.result.rate_context.target_rate.freshness_state) }}
+                </span>
+                @if (resultState.result.rate_context.target_rate.is_fallback) {
+                  <span class="freshness-detail">Fallback used</span>
+                }
+                @if (resultState.result.rate_context.target_rate.is_stale) {
+                  <span class="freshness-detail stale">Stale</span>
+                }
+              </div>
+            </article>
+          </div>
+        </section>
+      }
+    }
+  }
+</main>
