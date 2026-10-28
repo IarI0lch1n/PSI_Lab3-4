@@ -186,6 +186,6 @@ def test_current_rates_routes_are_mounted_only_at_api_v1_paths() -> None:
 
     assert "/api/v1/currencies" in paths
     assert "/api/v1/rates/latest" in paths
-    assert "/api/v1/health" not in paths
+    assert "/api/v1/health" in paths
     assert "/currencies" not in paths
     assert "/rates/latest" not in paths
