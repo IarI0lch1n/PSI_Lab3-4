@@ -83,7 +83,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 - [x] T032 [P] [US2] Build the Angular classic converter with validation feedback and separate source/target provider, effective-time, primary-state, fallback, and stale labels in `web/src/app/features/converter/converter.component.ts` and `web/src/app/features/converter/converter.component.html`
 - [x] T033 [US2] Add Angular converter tests for invalid input, result formatting, same-currency behavior, unavailable rates, and both-leg freshness/provenance labels in `web/tests/converter.component.spec.ts`
 - [x] T034 [P] [US2] Build the Flutter classic converter with validation feedback and separate source/target provider, effective-time, primary-state, fallback, and stale labels in `mobile/lib/features/converter/presentation/converter_screen.dart`
-- [ ] T035 [US2] Add Flutter converter widget tests for invalid input, same-currency behavior, unavailable rates, and both-leg freshness/provenance labels in `mobile/test/features/converter/converter_screen_test.dart`
+- [x] T035 [US2] Add Flutter converter widget tests for invalid input, same-currency behavior, unavailable rates, and both-leg freshness/provenance labels in `mobile/test/features/converter/converter_screen_test.dart`
 
 **Checkpoint**: User Story 2 is independently usable in both clients and never collapses mixed-provider or mixed-freshness pair provenance.
 
