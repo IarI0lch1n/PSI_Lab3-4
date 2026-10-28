@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js';
+import { Injectable } from '@angular/core';
 import { RateEntry } from '../../core/models/rate.models';
 
 Decimal.set({ precision: 80 });
@@ -8,6 +9,7 @@ export interface CalculatedCurrencyValue {
   readonly amount: string;
 }
 
+@Injectable({ providedIn: 'root' })
 export class AllCurrenciesService {
   calculate(
     amount: string,

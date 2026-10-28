@@ -1,0 +1,76 @@
+<main class="comparison-page">
+  <header class="page-header">
+    <p class="brand">CurrencyHub</p>
+    <h1>All Currencies</h1>
+    <p class="intro">Compare every supported currency from one validated rate snapshot.</p>
+  </header>
+
+  @let viewState = state();
+  @if (viewState.status === 'loading') {
+    <section class="message-panel" aria-live="polite" aria-busy="true">
+      <p>Loading the latest complete snapshotâ€¦</p>
+    </section>
+  } @else if (viewState.status === 'error') {
+    <section class="message-panel error-panel" role="alert">
+      <h2>Comparison is unavailable.</h2>
+      <p>We couldnâ€™t load a complete snapshot for every supported currency.</p>
+      <button type="button" (click)="loadSnapshot()">Retry</button>
+    </section>
+  } @else {
+    <section class="controls" aria-label="Comparison controls">
+      <label>
+        Amount
+        <input [value]="amount()" (input)="setAmount($event)" inputmode="decimal" />
+      </label>
+      <label>
+        Entry currency
+        <select [value]="sourceCurrency()" (change)="setSourceCurrency($event)">
+          @for (currency of viewState.currencies; track currency.code) {
+            <option [value]="currency.code">{{ currency.code }} â€” {{ currency.name }}</option>
+          }
+        </select>
+      </label>
+      @if (amountError(); as error) {
+        <p class="field-error" role="alert">{{ error }}</p>
+      }
+    </section>
+
+    <section class="snapshot-summary" aria-label="Snapshot information">
+      <span>Snapshot collected</span>
+      <time [attr.datetime]="viewState.snapshot.captured_at">{{
+        viewState.snapshot.captured_at
+      }}</time>
+    </section>
+
+    <section class="comparison-list" aria-label="Currency comparison values">
+      @for (row of rows(); track row.currency.currency) {
+        <article class="currency-card">
+          <div>
+            <h2>{{ row.currency.currency }}</h2>
+            <p>{{ row.name }}</p>
+          </div>
+          <strong>{{ row.amount }}</strong>
+          <dl>
+            <div>
+              <dt>Provider</dt>
+              <dd>{{ row.currency.provider_name }}</dd>
+            </div>
+            <div>
+              <dt>Rate effective</dt>
+              <dd>{{ row.currency.effective_at }}</dd>
+            </div>
+          </dl>
+          <div class="badges">
+            <span>{{ row.currency.freshness_state | titlecase }}</span>
+            @if (row.currency.is_fallback) {
+              <span>Fallback used</span>
+            }
+            @if (row.currency.is_stale) {
+              <span>Stale</span>
+            }
+          </div>
+        </article>
+      }
+    </section>
+  }
+</main>
