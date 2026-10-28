@@ -39,6 +39,22 @@ const rates: readonly RateEntry[] = [
 ];
 
 describe('AllCurrenciesService', () => {
+  it('preserves the source amount exactly even beyond calculation precision', () => {
+    const amount = '12345678901234567890'.repeat(5) + '.00100';
+    expect(new AllCurrenciesService().calculate(amount, 'EUR', rates)[0].amount).toBe(amount);
+  });
+
+  it.each(['0', '-1', 'NaN', 'Infinity'])(
+    'rejects invalid rate %s instead of showing a result',
+    (value) => {
+      const invalid = [rates[0], { ...rates[1], normalized_rate_to_mdl: value }];
+      expect(() => new AllCurrenciesService().calculate('1', 'EUR', invalid)).toThrow();
+    },
+  );
+
+  it('rejects duplicate currency entries', () => {
+    expect(() => new AllCurrenciesService().calculate('1', 'EUR', [rates[0], rates[0]])).toThrow();
+  });
   it('calculates every value with Decimal arithmetic from the selected source rate', () => {
     const values = new AllCurrenciesService().calculate('123.456789012345678901', 'EUR', rates);
 

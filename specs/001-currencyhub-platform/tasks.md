@@ -95,7 +95,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 **Independent Test**: From one fake complete snapshot, enter an amount in different currency fields and verify values use that snapshot while each displayed currency retains its own provider, effective time, `freshness_state`, `is_fallback`, and `is_stale`.
 
-- [ ] T036 [P] [US3] Add a decimal-safe TypeScript calculation service for normalized rate entries and include its decimal dependency in `web/package.json` and `web/src/app/features/rates/all-currencies.service.ts`
+- [x] T036 [P] [US3] Add a decimal-safe TypeScript calculation service for normalized rate entries and include its decimal dependency in `web/package.json` and `web/src/app/features/rates/all-currencies.service.ts`
 - [x] T037 [P] [US3] Build the Angular all-currencies comparison screen using one complete snapshot and showing per-currency provider, effective time, primary freshness, fallback, and stale status in `web/src/app/features/rates/all-currencies.component.ts` and `web/src/app/features/rates/all-currencies.component.html`
 - [x] T038 [US3] Add Angular tests for source-currency switching, decimal-safe recalculation, one-snapshot consistency, and independent live/fallback/cached/stale display in `web/tests/all-currencies.component.spec.ts`
 - [x] T039 [P] [US3] Add a decimal package and decimal-safe normalized-rate comparison service in `mobile/pubspec.yaml` and `mobile/lib/features/rates/domain/all_currencies_calculator.dart`
