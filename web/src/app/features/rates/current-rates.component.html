@@ -1,0 +1,83 @@
+<main class="rates-page">
+  <header class="page-header">
+    <p class="brand">CurrencyHub</p>
+    <h1>Current Rates</h1>
+    <p class="intro">
+      Exchange rates in Moldovan lei, with source and freshness shown for each currency.
+    </p>
+  </header>
+
+  @let viewState = state();
+  @if (viewState.status === 'loading') {
+    <section class="message-panel" aria-live="polite" aria-busy="true">
+      <span class="loading-mark" aria-hidden="true"></span>
+      <p>Loading current rates…</p>
+    </section>
+  } @else if (viewState.status === 'error') {
+    <section class="message-panel error-panel" role="alert">
+      <h2>Current rates are unavailable.</h2>
+      <p>We couldn’t load the currency list and the latest complete rate snapshot.</p>
+      <button type="button" class="retry-button" (click)="loadRates()">Retry</button>
+    </section>
+  } @else {
+    <section class="snapshot-summary" aria-label="Snapshot information">
+      <span class="summary-label">Snapshot collected</span>
+      <time [attr.datetime]="viewState.snapshot.captured_at">
+        {{ viewState.snapshot.captured_at }}
+      </time>
+      <span class="summary-note"> Each rate below has its own effective time. </span>
+    </section>
+
+    <section class="rates-list" aria-label="Current exchange rates">
+      @for (rate of viewState.rows; track rate.code) {
+        <article class="rate-card" [attr.aria-labelledby]="'currency-' + rate.code">
+          <div class="currency-identity">
+            <h2 [id]="'currency-' + rate.code">{{ rate.code }}</h2>
+            <p class="currency-name">{{ rate.name }}</p>
+            <span class="currency-type">{{ rate.type }}</span>
+          </div>
+
+          <div class="rate-value">
+            <span class="field-label">Rate to MDL</span>
+            <strong>{{ rate.normalizedRateToMdl }}</strong>
+            <span class="nominal-unit">Nominal unit: {{ rate.nominalUnit }}</span>
+          </div>
+
+          <dl class="rate-details">
+            <div>
+              <dt>Provider</dt>
+              <dd>{{ rate.providerName }}</dd>
+            </div>
+            <div>
+              <dt>Provider type</dt>
+              <dd>{{ rate.providerType }}</dd>
+            </div>
+            <div class="effective-time">
+              <dt>Rate effective</dt>
+              <dd>
+                <time [attr.datetime]="rate.effectiveAt">{{ rate.effectiveAt }}</time>
+              </dd>
+            </div>
+          </dl>
+
+          <div class="freshness" aria-label="Rate freshness">
+            <span
+              class="freshness-state"
+              [class.live]="rate.freshnessState === 'live'"
+              [class.fallback]="rate.freshnessState === 'fallback'"
+              [class.cached]="rate.freshnessState === 'cached'"
+            >
+              {{ rate.freshnessState | titlecase }}
+            </span>
+            @if (rate.isFallback) {
+              <span class="freshness-detail">Fallback used</span>
+            }
+            @if (rate.isStale) {
+              <span class="freshness-detail stale">Stale</span>
+            }
+          </div>
+        </article>
+      }
+    </section>
+  }
+</main>

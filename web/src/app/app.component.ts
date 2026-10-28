@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 
 @Component({
   selector: 'app-root',
@@ -6,6 +6,4 @@ import { Component, signal } from '@angular/core';
   styleUrl: './app.component.scss',
   templateUrl: './app.component.html',
 })
-export class App {
-  protected readonly title = signal('currencyhub-web');
-}
+export class App {}

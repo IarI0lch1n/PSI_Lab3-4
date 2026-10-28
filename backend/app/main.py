@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.exception_handlers import register_exception_handlers
+from app.api.routers.health import router as health_router
+from app.api.routers.rates import router as rates_router
 from app.core.config.settings import Settings, get_settings
 from app.core.logging.logger import configure_logging
 
@@ -19,6 +21,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
     )
     application.state.settings = app_settings
+    application.include_router(rates_router, prefix="/api/v1")
+    application.include_router(health_router, prefix="/api/v1")
     application.add_middleware(
         CORSMiddleware,
         allow_origins=app_settings.cors_allowed_origins,

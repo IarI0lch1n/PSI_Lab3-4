@@ -1,0 +1,307 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.rates-page {
+  width: min(100% - 2rem, 1100px);
+  margin: 0 auto;
+  padding: 3rem 0 4rem;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.brand {
+  margin: 0 0 0.6rem;
+  color: #176b63;
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0.6rem;
+  color: #17243b;
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.045em;
+}
+
+.intro {
+  max-width: 42rem;
+  margin-bottom: 0;
+  color: #526079;
+  line-height: 1.6;
+}
+
+.snapshot-summary,
+.message-panel,
+.rate-card {
+  border: 1px solid #dfe6ee;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 8px 26px rgb(23 36 59 / 5%);
+}
+
+.snapshot-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.2rem;
+}
+
+.summary-label,
+.field-label {
+  color: #526079;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.snapshot-summary time {
+  color: #17243b;
+  font-weight: 650;
+}
+
+.summary-note {
+  flex-basis: 100%;
+  color: #647189;
+  font-size: 0.88rem;
+}
+
+.rates-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.rate-card {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(10rem, 1.2fr) minmax(15rem, 1.7fr) minmax(
+      8rem,
+      0.9fr
+    );
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem;
+}
+
+.currency-identity h2 {
+  margin-bottom: 0.2rem;
+  font-size: 1.25rem;
+}
+
+.currency-name {
+  margin-bottom: 0.55rem;
+  color: #526079;
+}
+
+.currency-type {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eef3f8;
+  color: #44536c;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.rate-value {
+  display: grid;
+  justify-items: start;
+  gap: 0.3rem;
+}
+
+.rate-value strong {
+  color: #17243b;
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.nominal-unit {
+  color: #647189;
+  font-size: 0.8rem;
+}
+
+.rate-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem 1rem;
+  margin: 0;
+}
+
+.rate-details dt {
+  margin-bottom: 0.2rem;
+  color: #647189;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.rate-details dd {
+  margin: 0;
+  color: #263650;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.effective-time {
+  grid-column: 1 / -1;
+}
+
+.freshness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.freshness-state,
+.freshness-detail {
+  display: inline-flex;
+  min-height: 1.8rem;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: capitalize;
+}
+
+.freshness-state.live {
+  background: #e6f5ee;
+  color: #185b3e;
+}
+
+.freshness-state.fallback {
+  background: #fff1d9;
+  color: #744700;
+}
+
+.freshness-state.cached {
+  background: #eaf0fb;
+  color: #344c7c;
+}
+
+.freshness-detail {
+  background: #f1f3f6;
+  color: #334159;
+  text-transform: none;
+}
+
+.freshness-detail.stale {
+  background: #fde9e7;
+  color: #8d2922;
+}
+
+.message-panel {
+  display: grid;
+  justify-items: start;
+  gap: 0.6rem;
+  padding: 1.5rem;
+}
+
+.message-panel p,
+.message-panel h2 {
+  margin-bottom: 0;
+}
+
+.message-panel p {
+  color: #526079;
+  line-height: 1.5;
+}
+
+.error-panel {
+  border-color: #efc8c4;
+}
+
+.retry-button {
+  margin-top: 0.45rem;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: #176b63;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.retry-button:hover {
+  background: #10584f;
+}
+
+.retry-button:focus-visible {
+  outline: 3px solid #74bdb5;
+  outline-offset: 3px;
+}
+
+.loading-mark {
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 3px solid #dce8e7;
+  border-top-color: #176b63;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .rate-card {
+    grid-template-columns: minmax(8rem, 1fr) minmax(10rem, 1.2fr) minmax(8rem, 0.8fr);
+  }
+
+  .rate-details {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+
+  .freshness {
+    grid-column: 3;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 600px) {
+  .rates-page {
+    width: min(100% - 1.25rem, 1100px);
+    padding-top: 2rem;
+  }
+
+  .rate-card {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 0.75rem;
+    padding: 1rem;
+  }
+
+  .rate-details {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .freshness {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-mark {
+    animation-duration: 2s;
+  }
+}
