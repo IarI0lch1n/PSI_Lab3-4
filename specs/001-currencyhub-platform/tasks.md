@@ -65,7 +65,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 - [x] T025 [P] [US1] Build the Angular current-rates view with currency identity, value, provider, effective time, and distinct live/fallback/cached plus stale presentation in `web/src/app/features/rates/current-rates.component.ts` and `web/src/app/features/rates/current-rates.component.html`
 - [x] T026 [US1] Add Angular presentation tests for current-rate values, `freshness_state`, `is_fallback`, `is_stale`, original effective dates, and snapshot collection time in `web/tests/current-rates.component.spec.ts`
 - [x] T027 [P] [US1] Build the Flutter current-rates screen with currency identity, value, provider, effective time, and distinct live/fallback/cached plus stale presentation in `mobile/lib/features/rates/presentation/current_rates_screen.dart`
-- [ ] T028 [US1] Add Flutter widget tests for current-rate values, `freshness_state`, `is_fallback`, `is_stale`, original effective dates, and snapshot collection time in `mobile/test/features/rates/current_rates_screen_test.dart`
+- [x] T028 [US1] Add Flutter widget tests for current-rate values, `freshness_state`, `is_fallback`, `is_stale`, original effective dates, and snapshot collection time in `mobile/test/features/rates/current_rates_screen_test.dart`
 
 **Checkpoint**: User Story 1 is independently usable in both clients and exposes per-currency provenance and freshness without account creation.
 
