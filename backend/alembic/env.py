@@ -4,6 +4,8 @@ import os
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.infrastructure.database.models import Base
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -18,10 +20,7 @@ database_url = os.getenv("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 
-# Add your model's MetaData object here for 'autogenerate' support
-# e.g. from app.infrastructure.database.models import Base; target_metadata = Base.metadata
-# For T001, database models are not yet implemented.
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
