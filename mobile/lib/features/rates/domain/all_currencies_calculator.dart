@@ -20,13 +20,27 @@ class AllCurrenciesCalculator {
     final sourceAmount = _parsePositiveAmount(amount);
     final sourceRate = _findRate(sourceCurrency, rates);
     final sourceNormalizedRate = _parsePositiveRate(sourceRate);
+    final codes = <String>{};
+    for (final rate in rates) {
+      if (!codes.add(rate.currency)) {
+        throw FormatException('Duplicate rate for ${rate.currency}.');
+      }
+      _parsePositiveRate(rate);
+    }
 
     return rates
         .map(
           (rate) => CalculatedCurrencyValue(
             currency: rate,
-            amount: (sourceAmount * sourceNormalizedRate / _parsePositiveRate(rate))
-                .toString(),
+            amount: rate.currency == sourceCurrency
+                ? amount.trim()
+                : (sourceAmount *
+                          sourceNormalizedRate /
+                          _parsePositiveRate(rate))
+                      // Preserve terminating decimals exactly; bound repeating
+                      // fractions to 80 places without binary floating point.
+                      .toDecimal(scaleOnInfinitePrecision: 80)
+                      .toString(),
           ),
         )
         .toList(growable: false);
