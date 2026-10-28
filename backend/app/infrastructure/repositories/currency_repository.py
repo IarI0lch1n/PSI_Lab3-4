@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, true
 from sqlalchemy.orm import Session
 
 from app.domain.entities.currency import Currency
@@ -19,7 +19,7 @@ class SqlAlchemyCurrencyRepository(CurrencyRepository):
     def get_supported_currencies(self) -> Sequence[Currency]:
         statement = (
             select(CurrencyModel)
-            .where(CurrencyModel.is_supported.is_(True))
+            .where(CurrencyModel.is_supported == true())
             .order_by(CurrencyModel.code.asc())
         )
         rows = self._session.execute(statement).scalars().all()
@@ -28,7 +28,7 @@ class SqlAlchemyCurrencyRepository(CurrencyRepository):
     def get_currency_by_code(self, code: str) -> Currency | None:
         normalized_code = code.strip().upper()
         statement = select(CurrencyModel).where(
-            CurrencyModel.is_supported.is_(True),
+            CurrencyModel.is_supported == true(),
             func.upper(func.trim(CurrencyModel.code)) == normalized_code,
         )
         row = self._session.execute(statement).scalars().first()

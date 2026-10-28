@@ -5,6 +5,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.dialects import mssql
 
 from app.domain.entities.rate_entry import RateEntry
 from app.domain.entities.rate_snapshot import RateSnapshot
@@ -132,6 +133,29 @@ def test_currency_repository_returns_none_for_missing_code() -> None:
     repository = SqlAlchemyCurrencyRepository(_Session([_Result([])]))
 
     assert repository.get_currency_by_code("missing") is None
+
+
+def test_currency_supported_predicates_compile_for_mssql() -> None:
+    currencies = CurrencyModel(
+        code="USD",
+        name="US Dollar",
+        type=CurrencyType.FIAT,
+        is_supported=True,
+    )
+    session = _Session(
+        [_Result([currencies]), _Result([currencies])]
+    )
+    repository = SqlAlchemyCurrencyRepository(session)
+
+    repository.get_supported_currencies()
+    repository.get_currency_by_code("USD")
+
+    compiled_statements = [
+        str(statement.compile(dialect=mssql.dialect()))
+        for statement in session.statements
+    ]
+    assert all("currencies.is_supported = 1" in sql for sql in compiled_statements)
+    assert all("IS 1" not in sql for sql in compiled_statements)
 
 
 def test_rate_mapping_preserves_ids_decimal_metadata_and_uses_resolver() -> None:
