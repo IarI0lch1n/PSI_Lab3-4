@@ -97,7 +97,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 - [ ] T036 [P] [US3] Add a decimal-safe TypeScript calculation service for normalized rate entries and include its decimal dependency in `web/package.json` and `web/src/app/features/rates/all-currencies.service.ts`
 - [x] T037 [P] [US3] Build the Angular all-currencies comparison screen using one complete snapshot and showing per-currency provider, effective time, primary freshness, fallback, and stale status in `web/src/app/features/rates/all-currencies.component.ts` and `web/src/app/features/rates/all-currencies.component.html`
-- [ ] T038 [US3] Add Angular tests for source-currency switching, decimal-safe recalculation, one-snapshot consistency, and independent live/fallback/cached/stale display in `web/tests/all-currencies.component.spec.ts`
+- [x] T038 [US3] Add Angular tests for source-currency switching, decimal-safe recalculation, one-snapshot consistency, and independent live/fallback/cached/stale display in `web/tests/all-currencies.component.spec.ts`
 - [ ] T039 [P] [US3] Add a decimal package and decimal-safe normalized-rate comparison service in `mobile/pubspec.yaml` and `mobile/lib/features/rates/domain/all_currencies_calculator.dart`
 - [ ] T040 [P] [US3] Build the Flutter all-currencies comparison screen using one complete snapshot and showing per-currency provider, effective time, primary freshness, fallback, and stale status in `mobile/lib/features/rates/presentation/all_currencies_screen.dart`
 - [ ] T041 [US3] Add Flutter widget tests for source-currency switching, one-snapshot consistency, and independent live/fallback/cached/stale display in `mobile/test/features/rates/all_currencies_screen_test.dart`
