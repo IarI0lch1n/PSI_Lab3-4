@@ -23,12 +23,44 @@ class RatesApiClient {
     return RateSnapshot.fromJson(json);
   }
 
+  Future<ConversionResponse> convert(ConversionRequest request) async {
+    final json = await _postJson('convert', request.toJson());
+    return ConversionResponse.fromJson(json);
+  }
+
   Future<Map<String, dynamic>> _getJson(String endpoint) async {
     final uri = Uri.parse('$_baseUrl/$endpoint');
     final response = await client.get(uri);
+    return _decodeJsonResponse(uri, response, method: 'GET');
+  }
 
+  Future<Map<String, dynamic>> _postJson(
+    String endpoint,
+    Map<String, String> body,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/$endpoint');
+    final response = await client.post(
+      uri,
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return _decodeJsonResponse(uri, response, method: 'POST');
+  }
+
+  Map<String, dynamic> _decodeJsonResponse(
+    Uri uri,
+    http.Response response, {
+    required String method,
+  }) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw RatesApiException(uri: uri, statusCode: response.statusCode);
+      final errorDetails = _readErrorDetails(response.body);
+      throw RatesApiException(
+        uri: uri,
+        statusCode: response.statusCode,
+        method: method,
+        errorCode: errorDetails?.$1,
+        safeMessage: errorDetails?.$2,
+      );
     }
 
     final decoded = jsonDecode(response.body);
@@ -39,14 +71,45 @@ class RatesApiClient {
       'Expected the API response to be a JSON object.',
     );
   }
+
+  (String, String)? _readErrorDetails(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+      final error = decoded['error'];
+      if (error is! Map<String, dynamic>) {
+        return null;
+      }
+      final code = error['code'];
+      final message = error['message'];
+      if (code is String && message is String && code.isNotEmpty) {
+        return (code, message);
+      }
+    } on FormatException {
+      return null;
+    }
+    return null;
+  }
 }
 
 class RatesApiException implements Exception {
-  const RatesApiException({required this.uri, required this.statusCode});
+  const RatesApiException({
+    required this.uri,
+    required this.statusCode,
+    this.method = 'GET',
+    this.errorCode,
+    this.safeMessage,
+  });
 
   final Uri uri;
   final int statusCode;
+  final String method;
+  final String? errorCode;
+  final String? safeMessage;
 
   @override
-  String toString() => 'RatesApiException: GET $uri returned HTTP $statusCode.';
+  String toString() =>
+      'RatesApiException: $method $uri returned HTTP $statusCode.';
 }

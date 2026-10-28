@@ -3,16 +3,15 @@ import { inject, Injectable, InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   CurrenciesResponse,
+  ConversionRequest,
+  ConversionResponse,
   RateSnapshot,
 } from '../models/rate.models';
 
-export const CURRENCYHUB_API_BASE_URL = new InjectionToken<string>(
-  'CURRENCYHUB_API_BASE_URL',
-  {
-    providedIn: 'root',
-    factory: () => 'http://localhost:8000/api/v1',
-  },
-);
+export const CURRENCYHUB_API_BASE_URL = new InjectionToken<string>('CURRENCYHUB_API_BASE_URL', {
+  providedIn: 'root',
+  factory: () => 'http://localhost:8000/api/v1',
+});
 
 @Injectable({ providedIn: 'root' })
 export class RatesApiService {
@@ -25,5 +24,9 @@ export class RatesApiService {
 
   getLatestRates(): Observable<RateSnapshot> {
     return this.http.get<RateSnapshot>(`${this.baseUrl}/rates/latest`);
+  }
+
+  convert(request: ConversionRequest): Observable<ConversionResponse> {
+    return this.http.post<ConversionResponse>(`${this.baseUrl}/convert`, request);
   }
 }

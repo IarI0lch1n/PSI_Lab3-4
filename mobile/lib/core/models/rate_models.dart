@@ -175,6 +175,55 @@ class RateContext {
   }
 }
 
+class ConversionRequest {
+  const ConversionRequest({
+    required this.amount,
+    required this.sourceCurrency,
+    required this.targetCurrency,
+  });
+
+  final String amount;
+  final String sourceCurrency;
+  final String targetCurrency;
+
+  Map<String, String> toJson() => {
+    'amount': amount,
+    'source_currency': sourceCurrency,
+    'target_currency': targetCurrency,
+  };
+}
+
+class ConversionResponse {
+  const ConversionResponse({
+    required this.sourceAmount,
+    required this.convertedAmount,
+    required this.sourceCurrency,
+    required this.targetCurrency,
+    required this.rateValue,
+    required this.rateContext,
+  });
+
+  final String sourceAmount;
+  final String convertedAmount;
+  final String sourceCurrency;
+  final String targetCurrency;
+  final String rateValue;
+  final RateContext rateContext;
+
+  factory ConversionResponse.fromJson(Map<String, dynamic> json) {
+    return ConversionResponse(
+      sourceAmount: _requiredString(json, 'source_amount'),
+      convertedAmount: _requiredString(json, 'converted_amount'),
+      sourceCurrency: _requiredString(json, 'source_currency'),
+      targetCurrency: _requiredString(json, 'target_currency'),
+      rateValue: _requiredString(json, 'rate_value'),
+      rateContext: RateContext.fromJson(
+        _requiredObject(json['rate_context'], 'rate_context'),
+      ),
+    );
+  }
+}
+
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];
   if (value is String) {

@@ -1,0 +1,31 @@
+:host {
+  display: block;
+}
+
+.primary-navigation {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #dfe6ee;
+  background: #fff;
+}
+
+.primary-navigation a {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  color: #34445e;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.primary-navigation a:hover,
+.primary-navigation a.active {
+  background: #e6f5ee;
+  color: #185b3e;
+}
+
+.primary-navigation a:focus-visible {
+  outline: 3px solid #74bdb5;
+  outline-offset: 2px;
+}
