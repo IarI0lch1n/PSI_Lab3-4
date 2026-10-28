@@ -154,3 +154,46 @@ def test_unit_of_work_dependency_can_be_overridden() -> None:
         response = client.get("/test-overridden-uow")
 
     assert response.json() == {"is_override": True}
+
+
+def test_use_case_dependencies_construct_unentered_unit_of_work(monkeypatch) -> None:
+    events: list[str] = []
+    created: list[object] = []
+
+    class FakeUnitOfWork:
+        class CurrencyRepository:
+            def get_supported_currencies(self):
+                return ()
+
+        class RateRepository:
+            def get_latest_usable_snapshot(self):
+                return None
+
+        currency_repository = CurrencyRepository()
+        rate_repository = RateRepository()
+
+        def __enter__(self):
+            events.append("enter")
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            events.append("exit")
+
+    def create_unit_of_work(settings: Settings) -> UnitOfWork:
+        del settings
+        unit_of_work = FakeUnitOfWork()
+        created.append(unit_of_work)
+        return cast(UnitOfWork, unit_of_work)
+
+    monkeypatch.setattr(dependencies, "_create_unit_of_work", create_unit_of_work)
+
+    list_use_case = dependencies.get_list_currencies_use_case(Settings())
+    latest_use_case = dependencies.get_latest_snapshot_use_case(Settings())
+
+    assert len(created) == 2
+    assert created[0] is not created[1]
+    assert events == []
+    assert list_use_case.execute() == ()
+    assert events == ["enter", "exit"]
+    assert latest_use_case._unit_of_work is created[1]
+    assert events == ["enter", "exit"]

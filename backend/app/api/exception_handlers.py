@@ -7,6 +7,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.application.services.snapshot_service import SnapshotAssemblyError
+from app.application.use_cases.get_latest_snapshot import (
+    LatestSnapshotUnavailableError,
+)
 from app.infrastructure.providers.bnm_rate_provider import BnmRateProviderError
 from app.infrastructure.providers.coingecko_rate_provider import (
     CoinGeckoRateProviderError,
@@ -25,6 +28,18 @@ def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
 async def handle_snapshot_assembly_error(
     request: Request,
     exc: SnapshotAssemblyError,
+) -> JSONResponse:
+    del request, exc
+    return _error_response(
+        503,
+        "snapshot_unavailable",
+        "A complete rate snapshot is currently unavailable.",
+    )
+
+
+async def handle_latest_snapshot_unavailable_error(
+    request: Request,
+    exc: LatestSnapshotUnavailableError,
 ) -> JSONResponse:
     del request, exc
     return _error_response(
@@ -78,6 +93,10 @@ async def handle_unexpected_error(
 def register_exception_handlers(app: FastAPI) -> None:
     """Register common, sanitized error responses on a FastAPI application."""
     app.add_exception_handler(SnapshotAssemblyError, handle_snapshot_assembly_error)
+    app.add_exception_handler(
+        LatestSnapshotUnavailableError,
+        handle_latest_snapshot_unavailable_error,
+    )
     app.add_exception_handler(BnmRateProviderError, handle_provider_error)
     app.add_exception_handler(CoinGeckoRateProviderError, handle_provider_error)
     app.add_exception_handler(SQLAlchemyError, handle_database_error)

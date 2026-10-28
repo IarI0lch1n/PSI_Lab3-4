@@ -7,6 +7,8 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.services.snapshot_service import SnapshotService
+from app.application.use_cases.get_latest_snapshot import GetLatestSnapshot
+from app.application.use_cases.list_currencies import ListCurrencies
 from app.core.config.settings import Settings, get_settings
 from app.domain.interfaces.rate_provider import RateProvider
 from app.domain.interfaces.unit_of_work import UnitOfWork
@@ -27,13 +29,32 @@ def get_app_settings(request: Request) -> Settings:
     return settings if isinstance(settings, Settings) else get_settings()
 
 
+def _create_unit_of_work(settings: Settings) -> UnitOfWork:
+    """Construct a fresh UnitOfWork without entering its context."""
+    session_factory = _session_factory_for_url(settings.database_url)
+    return SqlAlchemyUnitOfWork(session_factory=session_factory)
+
+
 def get_unit_of_work(
     settings: Settings = Depends(get_app_settings),
 ) -> Iterator[UnitOfWork]:
     """Yield a request-scoped unit of work without committing on request exit."""
-    session_factory = _session_factory_for_url(settings.database_url)
-    with SqlAlchemyUnitOfWork(session_factory=session_factory) as unit_of_work:
+    with _create_unit_of_work(settings) as unit_of_work:
         yield unit_of_work
+
+
+def get_list_currencies_use_case(
+    settings: Settings = Depends(get_app_settings),
+) -> ListCurrencies:
+    """Construct the supported-currency use case with its own UnitOfWork."""
+    return ListCurrencies(unit_of_work=_create_unit_of_work(settings))
+
+
+def get_latest_snapshot_use_case(
+    settings: Settings = Depends(get_app_settings),
+) -> GetLatestSnapshot:
+    """Construct the latest-snapshot use case with its own UnitOfWork."""
+    return GetLatestSnapshot(unit_of_work=_create_unit_of_work(settings))
 
 
 def get_rate_provider_factory(

@@ -25,12 +25,16 @@ def test_root_endpoint_remains_available() -> None:
     assert response.json() == {"message": "Welcome to CurrencyHub API"}
 
 
-def test_application_creation_does_not_add_business_or_health_routes() -> None:
+def test_application_creation_adds_only_current_rates_routes() -> None:
     application = create_app()
-    paths = {route.path for route in application.routes}
+    paths = set(application.openapi()["paths"])
 
-    assert paths == {"/", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
-    assert not any(path.startswith("/api/") for path in paths)
+    assert paths == {
+        "/",
+        "/api/v1/currencies",
+        "/api/v1/rates/latest",
+    }
+    assert "/api/v1/health" not in paths
 
 
 def test_configured_origin_is_allowed_by_cors() -> None:
