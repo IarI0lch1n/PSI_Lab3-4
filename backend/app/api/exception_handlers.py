@@ -7,6 +7,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.application.services.snapshot_service import SnapshotAssemblyError
+from app.application.use_cases.convert_currency import (
+    ConversionRateUnavailableError,
+    ConversionSnapshotUnavailableError,
+    InvalidConversionInputError,
+)
 from app.application.use_cases.get_latest_snapshot import (
     LatestSnapshotUnavailableError,
 )
@@ -16,6 +21,42 @@ from app.infrastructure.providers.coingecko_rate_provider import (
 )
 
 _LOGGER = logging.getLogger("currencyhub.api")
+
+
+async def handle_invalid_conversion_input_error(
+    request: Request,
+    exc: InvalidConversionInputError,
+) -> JSONResponse:
+    del request, exc
+    return _error_response(
+        422,
+        "invalid_conversion_input",
+        "Amount and currencies must be valid and supported.",
+    )
+
+
+async def handle_conversion_snapshot_unavailable_error(
+    request: Request,
+    exc: ConversionSnapshotUnavailableError,
+) -> JSONResponse:
+    del request, exc
+    return _error_response(
+        503,
+        "conversion_unavailable",
+        "Conversion is currently unavailable.",
+    )
+
+
+async def handle_conversion_rate_unavailable_error(
+    request: Request,
+    exc: ConversionRateUnavailableError,
+) -> JSONResponse:
+    del request
+    return _error_response(
+        422,
+        "rate_unavailable",
+        f"No usable rate is available for {exc.currency}.",
+    )
 
 
 def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
@@ -92,6 +133,18 @@ async def handle_unexpected_error(
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register common, sanitized error responses on a FastAPI application."""
+    app.add_exception_handler(
+        InvalidConversionInputError,
+        handle_invalid_conversion_input_error,
+    )
+    app.add_exception_handler(
+        ConversionSnapshotUnavailableError,
+        handle_conversion_snapshot_unavailable_error,
+    )
+    app.add_exception_handler(
+        ConversionRateUnavailableError,
+        handle_conversion_rate_unavailable_error,
+    )
     app.add_exception_handler(SnapshotAssemblyError, handle_snapshot_assembly_error)
     app.add_exception_handler(
         LatestSnapshotUnavailableError,

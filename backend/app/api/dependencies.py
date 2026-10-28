@@ -7,6 +7,7 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.services.snapshot_service import SnapshotService
+from app.application.use_cases.convert_currency import ConvertCurrency
 from app.application.use_cases.get_latest_snapshot import GetLatestSnapshot
 from app.application.use_cases.list_currencies import ListCurrencies
 from app.core.config.settings import Settings, get_settings
@@ -55,6 +56,13 @@ def get_latest_snapshot_use_case(
 ) -> GetLatestSnapshot:
     """Construct the latest-snapshot use case with its own UnitOfWork."""
     return GetLatestSnapshot(unit_of_work=_create_unit_of_work(settings))
+
+
+def get_convert_currency_use_case(
+    settings: Settings = Depends(get_app_settings),
+) -> ConvertCurrency:
+    """Construct the conversion use case with its own unentered UnitOfWork."""
+    return ConvertCurrency(unit_of_work=_create_unit_of_work(settings))
 
 
 def get_rate_provider_factory(
