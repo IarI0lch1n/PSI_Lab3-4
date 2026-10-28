@@ -206,6 +206,7 @@ class _ConverterScreenState extends State<ConverterScreen> {
         const SizedBox(height: 20),
         TextField(
           controller: _amountController,
+          enabled: !_isConverting,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
             labelText: 'Amount',

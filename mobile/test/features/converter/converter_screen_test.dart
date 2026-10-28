@@ -26,15 +26,24 @@ void main() {
     expect(find.text('Enter a positive decimal amount.'), findsOneWidget);
     expect(find.text('Convert'), findsOneWidget);
     expect(
-      tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Convert'))
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Convert'))
           .onPressed,
       isNull,
     );
 
-    await tester.enterText(find.byType(TextField), '-1');
-    await tester.pump();
-
-    expect(find.text('Enter a valid positive decimal amount.'), findsOneWidget);
+    await _selectCurrency(tester, 0, 'USD');
+    await _selectCurrency(tester, 1, 'BTC');
+    for (final invalid in ['', '0', '0.000', '-1', 'abc', 'NaN', 'Infinity']) {
+      await tester.enterText(find.byType(TextField), invalid);
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Convert'))
+            .onPressed,
+        isNull,
+      );
+    }
     expect(conversionRequests, 0);
   });
 
@@ -47,12 +56,14 @@ void main() {
         return _jsonResponse(_currenciesJson());
       }
       requestBody = jsonDecode(request.body) as Map<String, dynamic>;
-      return _jsonResponse(_conversionJson(
-        sourceCurrency: 'USD',
-        targetCurrency: 'USD',
-        convertedAmount: '25.00',
-        rateValue: '1',
-      ));
+      return _jsonResponse(
+        _conversionJson(
+          sourceCurrency: 'USD',
+          targetCurrency: 'USD',
+          convertedAmount: '25.00',
+          rateValue: '1',
+        ),
+      );
     });
     addTearDown(client.close);
 
@@ -74,35 +85,36 @@ void main() {
     expect(find.text('Target rate context — USD'), findsOneWidget);
   });
 
-  testWidgets('identifies an unavailable required rate without showing a result', (
-    tester,
-  ) async {
-    final client = MockClient((request) async {
-      if (request.url.path.endsWith('/currencies')) {
-        return _jsonResponse(_currenciesJson());
-      }
-      return http.Response(
-        jsonEncode({
-          'error': {
-            'code': 'rate_unavailable',
-            'message': 'Rate for BTC is unavailable.',
-          },
-        }),
-        404,
-      );
-    });
-    addTearDown(client.close);
+  testWidgets(
+    'identifies an unavailable required rate without showing a result',
+    (tester) async {
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/currencies')) {
+          return _jsonResponse(_currenciesJson());
+        }
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'code': 'rate_unavailable',
+              'message': 'Rate for BTC is unavailable.',
+            },
+          }),
+          404,
+        );
+      });
+      addTearDown(client.close);
 
-    await _pumpScreen(tester, client);
-    await tester.enterText(find.byType(TextField), '25');
-    await _selectCurrency(tester, 0, 'USD');
-    await _selectCurrency(tester, 1, 'BTC');
-    await tester.tap(find.widgetWithText(FilledButton, 'Convert'));
-    await tester.pumpAndSettle();
+      await _pumpScreen(tester, client);
+      await tester.enterText(find.byType(TextField), '25');
+      await _selectCurrency(tester, 0, 'USD');
+      await _selectCurrency(tester, 1, 'BTC');
+      await tester.tap(find.widgetWithText(FilledButton, 'Convert'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Rate for BTC is unavailable.'), findsOneWidget);
-    expect(find.text('Conversion result'), findsNothing);
-  });
+      expect(find.text('Rate for BTC is unavailable.'), findsOneWidget);
+      expect(find.text('Conversion result'), findsNothing);
+    },
+  );
 
   testWidgets('shows independent source and target provenance labels', (
     tester,
@@ -124,8 +136,34 @@ void main() {
 
     expect(find.text('Source rate context — USD'), findsOneWidget);
     expect(find.text('Target rate context — BTC'), findsOneWidget);
-    expect(find.text('Provider: BNM'), findsOneWidget);
-    expect(find.text('Provider: CoinGecko'), findsOneWidget);
+    final sourceCard = find
+        .ancestor(
+          of: find.text('Source rate context — USD'),
+          matching: find.byType(Card),
+        )
+        .first;
+    final targetCard = find
+        .ancestor(
+          of: find.text('Target rate context — BTC'),
+          matching: find.byType(Card),
+        )
+        .first;
+    expect(
+      find.descendant(of: sourceCard, matching: find.text('BNM')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: targetCard, matching: find.text('CoinGecko')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sourceCard, matching: find.text('Stale')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sourceCard, matching: find.text('Fallback used')),
+      findsNothing,
+    );
     expect(find.text('2026-10-28T09:00:00Z'), findsOneWidget);
     expect(find.text('2026-10-28T11:45:00Z'), findsOneWidget);
     expect(find.text('Live'), findsOneWidget);
@@ -153,9 +191,11 @@ Future<void> _selectCurrency(
   int selectorIndex,
   String currency,
 ) async {
-  await tester.tap(find.byType(DropdownButtonFormField<String>).at(selectorIndex));
+  await tester.tap(
+    find.byType(DropdownButtonFormField<String>).at(selectorIndex),
+  );
   await tester.pumpAndSettle();
-  await tester.tap(find.text(currency).last);
+  await tester.tap(find.textContaining('$currency — ').last);
   await tester.pumpAndSettle();
 }
 
@@ -166,8 +206,18 @@ http.Response _jsonResponse(Map<String, dynamic> body) {
 Map<String, dynamic> _currenciesJson() {
   return {
     'currencies': [
-      {'code': 'USD', 'name': 'US Dollar', 'type': 'fiat', 'is_supported': true},
-      {'code': 'BTC', 'name': 'Bitcoin', 'type': 'crypto', 'is_supported': true},
+      {
+        'code': 'USD',
+        'name': 'US Dollar',
+        'type': 'fiat',
+        'is_supported': true,
+      },
+      {
+        'code': 'BTC',
+        'name': 'Bitcoin',
+        'type': 'crypto',
+        'is_supported': true,
+      },
     ],
   };
 }
