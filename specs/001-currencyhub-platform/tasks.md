@@ -77,7 +77,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 **Independent Test**: With a fake validated snapshot containing EUR from BNM and BTC from a crypto provider, convert EUR to BTC and inspect the result, snapshot reference, and both independent rate contexts, including `freshness_state`, `is_fallback`, and `is_stale`.
 
-- [ ] T029 [US2] Implement input validation and Decimal-based normalized-rate conversion, including same-currency pass-through and rejection of unavailable required entries, in `backend/app/application/use_cases/convert_currency.py`
+- [x] T029 [US2] Implement input validation and Decimal-based normalized-rate conversion, including same-currency pass-through and rejection of unavailable required entries, in `backend/app/application/use_cases/convert_currency.py`
 - [ ] T030 [US2] Define conversion request/result schemas and implement `POST /api/v1/convert`; both rate-context legs MUST expose `provider_name`, `effective_at`, `freshness_state`, `is_fallback`, and `is_stale` in `backend/app/api/schemas/conversion.py` and `backend/app/api/routers/conversion.py`
 - [ ] T031 [US2] Add fake-provider backend unit and API contract tests for fiat/fiat, fiat/crypto, crypto/fiat, crypto/crypto, reverse, same-currency, invalid input, missing-rate errors, both-leg provenance fields, and mixed-provider attribution in `backend/tests/unit/test_conversion.py` and `backend/tests/contract/test_conversion_api.py`
 - [ ] T032 [P] [US2] Build the Angular classic converter with validation feedback and separate source/target provider, effective-time, primary-state, fallback, and stale labels in `web/src/app/features/converter/converter.component.ts` and `web/src/app/features/converter/converter.component.html`
