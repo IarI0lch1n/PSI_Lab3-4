@@ -1,9 +1,64 @@
-"""Initial test verifying FastAPI app initialization."""
+"""Tests for FastAPI application construction."""
 
-from app.main import app
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.core.config.settings import Settings
+from app.main import app, create_app
 
 
-def test_app_instance() -> None:
-    """Verify that the FastAPI app instance is configured."""
-    assert app is not None
-    assert app.title == "CurrencyHub API"
+def test_module_app_and_factory_preserve_application_metadata() -> None:
+    application = create_app()
+
+    assert isinstance(app, FastAPI)
+    assert isinstance(application, FastAPI)
+    assert app.title == application.title == "CurrencyHub API"
+    assert application.description
+    assert application.version == "0.1.0"
+
+
+def test_root_endpoint_remains_available() -> None:
+    with TestClient(create_app()) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "Welcome to CurrencyHub API"}
+
+
+def test_application_creation_does_not_add_business_or_health_routes() -> None:
+    application = create_app()
+    paths = {route.path for route in application.routes}
+
+    assert paths == {"/", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+    assert not any(path.startswith("/api/") for path in paths)
+
+
+def test_configured_origin_is_allowed_by_cors() -> None:
+    settings = Settings(cors_allowed_origins=["https://client.example"])
+    with TestClient(create_app(settings)) as client:
+        response = client.options(
+            "/",
+            headers={
+                "Origin": "https://client.example",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://client.example"
+    assert "access-control-allow-credentials" not in response.headers
+
+
+def test_unconfigured_origin_is_not_allowed_by_cors() -> None:
+    settings = Settings(cors_allowed_origins=["https://client.example"])
+    with TestClient(create_app(settings)) as client:
+        response = client.options(
+            "/",
+            headers={
+                "Origin": "https://untrusted.example",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert "access-control-allow-origin" not in response.headers
