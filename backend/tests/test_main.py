@@ -33,6 +33,7 @@ def test_application_creation_adds_public_api_routes() -> None:
         "/",
         "/api/v1/currencies",
         "/api/v1/rates/latest",
+        "/api/v1/rates/refresh",
         "/api/v1/convert",
         "/api/v1/history",
         "/api/v1/analytics",

@@ -9,7 +9,9 @@ from fastapi.testclient import TestClient
 from app.api.dependencies import (
     get_latest_snapshot_use_case,
     get_list_currencies_use_case,
+    get_refresh_rates_use_case,
 )
+from app.application.use_cases.refresh_rates import RefreshResult
 from app.application.use_cases.get_latest_snapshot import (
     LatestSnapshotUnavailableError,
 )
@@ -50,6 +52,14 @@ class FakeGetLatestSnapshot:
             raise self.error
         assert self.snapshot is not None
         return self.snapshot
+
+
+class FakeRefreshRates:
+    def __init__(self, result: RefreshResult) -> None:
+        self.result = result
+
+    async def execute(self) -> RefreshResult:
+        return self.result
 
 
 def _snapshot() -> RateSnapshot:
@@ -186,6 +196,35 @@ def test_current_rates_routes_are_mounted_only_at_api_v1_paths() -> None:
 
     assert "/api/v1/currencies" in paths
     assert "/api/v1/rates/latest" in paths
+    assert "/api/v1/rates/refresh" in paths
     assert "/api/v1/health" in paths
     assert "/currencies" not in paths
     assert "/rates/latest" not in paths
+
+
+def test_refresh_endpoint_reports_independent_freshness_counts() -> None:
+    snapshot = _snapshot()
+    application = create_app(Settings())
+    application.dependency_overrides[get_refresh_rates_use_case] = lambda: (
+        FakeRefreshRates(RefreshResult(snapshot, updated=True))
+    )
+
+    with TestClient(application) as client:
+        response = client.post("/api/v1/rates/refresh")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "snapshot_id": str(_SNAPSHOT_ID),
+        "captured_at": "2026-10-28T12:00:00Z",
+        "updated": True,
+        "rate_count": 2,
+        "freshness_summary": {
+            "rate_entry_freshness_counts": {
+                "live": 0,
+                "fallback": 1,
+                "cached": 1,
+            },
+            "stale_entry_count": 1,
+            "fallback_entry_count": 1,
+        },
+    }

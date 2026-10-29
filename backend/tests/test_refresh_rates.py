@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.application.services.snapshot_service import SnapshotAssemblyError
 from app.application.use_cases.refresh_rates import RefreshRates
 from app.domain.entities.currency import (
     SUPPORTED_CRYPTO_CURRENCIES,
@@ -64,9 +65,42 @@ def _previous_snapshot(captured_at: datetime) -> RateSnapshot:
     return RateSnapshot(snapshot_id, captured_at, entries)
 
 
-def _use_case(now: datetime, *providers, publication_day=None) -> RefreshRates:
+class _FakeRateRepository:
+    def __init__(self, previous: RateSnapshot | None) -> None:
+        self.previous = previous
+        self.saved: list[RateSnapshot] = []
+
+    def get_latest_usable_snapshot(self) -> RateSnapshot | None:
+        return self.previous
+
+    def save_complete_snapshot(self, snapshot: RateSnapshot) -> None:
+        self.saved.append(snapshot)
+
+
+class _FakeUnitOfWork:
+    def __init__(self, previous: RateSnapshot | None) -> None:
+        self.rate_repository = _FakeRateRepository(previous)
+        self.commit_calls = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        del exc_type, exc_value, traceback
+
+    def commit(self) -> None:
+        self.commit_calls += 1
+
+
+def _use_case(
+    now: datetime,
+    *providers,
+    publication_day=None,
+    unit_of_work=None,
+) -> RefreshRates:
     return RefreshRates(
         providers,
+        unit_of_work=unit_of_work,
         clock=lambda: now,
         snapshot_id_factory=lambda: _SNAPSHOT_ID,
         is_bnm_publication_day=publication_day,
@@ -85,13 +119,13 @@ async def test_weekend_and_official_holiday_previous_bnm_rates_are_fallback() ->
         saturday,
         FakeBnmRateProvider(latest_error=RuntimeError("closed")),
         crypto,
-    ).execute(previous_snapshot=previous)
+    ).assemble_candidate(previous_snapshot=previous)
     holiday = await _use_case(
         _MONDAY,
         FakeBnmRateProvider(latest_error=RuntimeError("holiday")),
         crypto,
         publication_day=lambda _: False,
-    ).execute(previous_snapshot=previous)
+    ).assemble_candidate(previous_snapshot=previous)
 
     for snapshot in (weekend, holiday):
         usd = snapshot.get_rate("USD")
@@ -112,7 +146,7 @@ async def test_expected_newer_bnm_rate_is_cached_stale_without_fallback() -> Non
         FakeCoinGeckoRateProvider(
             latest_rates=make_complete_crypto_rates(effective_at=_MONDAY)
         ),
-    ).execute(previous_snapshot=previous)
+    ).assemble_candidate(previous_snapshot=previous)
 
     usd = snapshot.get_rate("USD")
     assert usd is not None
@@ -143,7 +177,7 @@ async def test_crypto_boundary_uses_last_successful_snapshot_time(
             latest_rates=make_complete_fiat_rates(effective_at=_MONDAY)
         ),
         FakeCoinGeckoRateProvider(latest_error=RuntimeError("offline")),
-    ).execute(previous_snapshot=previous)
+    ).assemble_candidate(previous_snapshot=previous)
 
     btc = snapshot.get_rate("BTC")
     assert btc is not None
@@ -165,10 +199,72 @@ async def test_complete_current_candidate_keeps_independent_provider_context() -
                 effective_at=_MONDAY - timedelta(hours=2)
             )
         ),
-    ).execute()
+    ).assemble_candidate()
 
     assert len(snapshot.rates) == 18
     assert snapshot.get_rate("USD").provider_name == "Fake BNM"
     assert snapshot.get_rate("BTC").provider_name == "Fake CoinGecko"
     assert snapshot.get_rate("BTC").effective_at == _MONDAY - timedelta(hours=2)
     assert snapshot.get_rate("BTC").freshness_state is FreshnessState.LIVE
+
+
+@pytest.mark.asyncio
+async def test_successful_refresh_saves_and_commits_complete_candidate() -> None:
+    unit_of_work = _FakeUnitOfWork(_previous_snapshot(_FRIDAY))
+    use_case = _use_case(
+        _MONDAY,
+        FakeBnmRateProvider(
+            latest_rates=make_complete_fiat_rates(effective_at=_MONDAY)
+        ),
+        FakeCoinGeckoRateProvider(
+            latest_rates=make_complete_crypto_rates(effective_at=_MONDAY)
+        ),
+        unit_of_work=unit_of_work,
+    )
+
+    result = await use_case.execute()
+
+    assert result.updated
+    assert result.snapshot.snapshot_id == _SNAPSHOT_ID
+    assert unit_of_work.rate_repository.saved == [result.snapshot]
+    assert unit_of_work.commit_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_incomplete_refresh_preserves_previous_snapshot_without_commit() -> None:
+    previous = _previous_snapshot(_FRIDAY)
+    unit_of_work = _FakeUnitOfWork(previous)
+    use_case = _use_case(
+        _MONDAY,
+        FakeBnmRateProvider(
+            latest_rates=make_complete_fiat_rates(effective_at=_MONDAY)
+        ),
+        FakeCoinGeckoRateProvider(latest_error=RuntimeError("offline")),
+        unit_of_work=unit_of_work,
+    )
+
+    result = await use_case.execute()
+
+    assert not result.updated
+    assert result.snapshot is previous
+    assert unit_of_work.rate_repository.saved == []
+    assert unit_of_work.commit_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_incomplete_refresh_without_previous_snapshot_is_unavailable() -> None:
+    unit_of_work = _FakeUnitOfWork(None)
+    use_case = _use_case(
+        _MONDAY,
+        FakeBnmRateProvider(
+            latest_rates=make_complete_fiat_rates(effective_at=_MONDAY)
+        ),
+        FakeCoinGeckoRateProvider(latest_error=RuntimeError("offline")),
+        unit_of_work=unit_of_work,
+    )
+
+    with pytest.raises(SnapshotAssemblyError):
+        await use_case.execute()
+
+    assert unit_of_work.rate_repository.saved == []
+    assert unit_of_work.commit_calls == 0
