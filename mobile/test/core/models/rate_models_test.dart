@@ -106,4 +106,43 @@ void main() {
     expect(context.targetRate.currency, 'BTC');
     expect(context.snapshotId, 'snapshot-123');
   });
+
+  test('parses exact analytics strings and independent provenance counts', () {
+    final response = AnalyticsResponse.fromJson({
+      'base_currency': 'EUR',
+      'quote_currency': 'BTC',
+      'period': '7d',
+      'points': [
+        {'date': '2026-10-28', 'value': '0.000032100000000000001'},
+      ],
+      'minimum': '0.000032100000000000001',
+      'maximum': '0.000032100000000000001',
+      'average': '0.000032100000000000001',
+      'absolute_change': '0',
+      'percentage_change': '0',
+      'trend': 'UNCHANGED',
+      'provenance_summary': {
+        'point_count': 1,
+        'source_providers': ['BNM'],
+        'target_providers': ['CoinGecko'],
+        'rate_entry_freshness_counts': {'live': 0, 'fallback': 1, 'cached': 1},
+        'stale_entry_count': 1,
+        'fallback_entry_count': 1,
+      },
+      'empty': false,
+    });
+
+    expect(response.period, AnalyticsPeriod.sevenDays);
+    expect(response.points.single.value, '0.000032100000000000001');
+    expect(response.points.single.value, isA<String>());
+    expect(response.trend, AnalyticsTrend.unchanged);
+    expect(response.provenanceSummary.sourceProviders, ['BNM']);
+    expect(response.provenanceSummary.rateEntryFreshnessCounts.fallback, 1);
+    expect(response.provenanceSummary.staleEntryCount, 1);
+    expect(response.provenanceSummary.fallbackEntryCount, 1);
+    expect(
+      () => response.points.add(response.points.single),
+      throwsUnsupportedError,
+    );
+  });
 }

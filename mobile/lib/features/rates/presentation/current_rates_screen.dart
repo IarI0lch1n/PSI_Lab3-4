@@ -77,6 +77,11 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
         title: const Text('CurrencyHub'),
         actions: [
           IconButton(
+            onPressed: () => Navigator.of(context).pushNamed('/analytics'),
+            icon: const Icon(Icons.insights_outlined),
+            tooltip: 'Analytics',
+          ),
+          IconButton(
             onPressed: () => Navigator.of(context).pushNamed('/all-currencies'),
             icon: const Icon(Icons.table_chart_outlined),
             tooltip: 'All currencies',

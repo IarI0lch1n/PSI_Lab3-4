@@ -224,6 +224,208 @@ class ConversionResponse {
   }
 }
 
+enum AnalyticsPeriod {
+  sevenDays('7d'),
+  thirtyDays('30d');
+
+  const AnalyticsPeriod(this.wireValue);
+  final String wireValue;
+
+  static AnalyticsPeriod fromJson(String value) => switch (value) {
+    '7d' => AnalyticsPeriod.sevenDays,
+    '30d' => AnalyticsPeriod.thirtyDays,
+    _ => throw FormatException('Unknown analytics period: "$value".'),
+  };
+}
+
+class HistoryPoint {
+  const HistoryPoint({
+    required this.date,
+    required this.value,
+    required this.rateContext,
+  });
+
+  final String date;
+  final String value;
+  final RateContext rateContext;
+
+  factory HistoryPoint.fromJson(Map<String, dynamic> json) => HistoryPoint(
+    date: _requiredString(json, 'date'),
+    value: _requiredString(json, 'value'),
+    rateContext: RateContext.fromJson(
+      _requiredObject(json['rate_context'], 'rate_context'),
+    ),
+  );
+}
+
+class HistoryResponse {
+  HistoryResponse({
+    required this.baseCurrency,
+    required this.quoteCurrency,
+    required this.period,
+    required List<HistoryPoint> points,
+    required this.empty,
+    this.message,
+  }) : points = List.unmodifiable(points);
+
+  final String baseCurrency;
+  final String quoteCurrency;
+  final AnalyticsPeriod period;
+  final List<HistoryPoint> points;
+  final bool empty;
+  final String? message;
+
+  factory HistoryResponse.fromJson(Map<String, dynamic> json) =>
+      HistoryResponse(
+        baseCurrency: _requiredString(json, 'base_currency'),
+        quoteCurrency: _requiredString(json, 'quote_currency'),
+        period: AnalyticsPeriod.fromJson(_requiredString(json, 'period')),
+        points: _requiredList(json, 'points')
+            .map(
+              (value) =>
+                  HistoryPoint.fromJson(_requiredObject(value, 'points item')),
+            )
+            .toList(growable: false),
+        empty: _requiredBool(json, 'empty'),
+        message: _optionalString(json, 'message'),
+      );
+}
+
+class AnalyticsPoint {
+  const AnalyticsPoint({required this.date, required this.value});
+  final String date;
+  final String value;
+
+  factory AnalyticsPoint.fromJson(Map<String, dynamic> json) => AnalyticsPoint(
+    date: _requiredString(json, 'date'),
+    value: _requiredString(json, 'value'),
+  );
+}
+
+class RateEntryFreshnessCounts {
+  const RateEntryFreshnessCounts({
+    required this.live,
+    required this.fallback,
+    required this.cached,
+  });
+  final int live;
+  final int fallback;
+  final int cached;
+
+  factory RateEntryFreshnessCounts.fromJson(Map<String, dynamic> json) =>
+      RateEntryFreshnessCounts(
+        live: _requiredInt(json, 'live'),
+        fallback: _requiredInt(json, 'fallback'),
+        cached: _requiredInt(json, 'cached'),
+      );
+}
+
+class ProvenanceSummary {
+  ProvenanceSummary({
+    required this.pointCount,
+    required List<String> sourceProviders,
+    required List<String> targetProviders,
+    required this.rateEntryFreshnessCounts,
+    required this.staleEntryCount,
+    required this.fallbackEntryCount,
+  }) : sourceProviders = List.unmodifiable(sourceProviders),
+       targetProviders = List.unmodifiable(targetProviders);
+
+  final int pointCount;
+  final List<String> sourceProviders;
+  final List<String> targetProviders;
+  final RateEntryFreshnessCounts rateEntryFreshnessCounts;
+  final int staleEntryCount;
+  final int fallbackEntryCount;
+
+  factory ProvenanceSummary.fromJson(Map<String, dynamic> json) =>
+      ProvenanceSummary(
+        pointCount: _requiredInt(json, 'point_count'),
+        sourceProviders: _requiredStringList(json, 'source_providers'),
+        targetProviders: _requiredStringList(json, 'target_providers'),
+        rateEntryFreshnessCounts: RateEntryFreshnessCounts.fromJson(
+          _requiredObject(
+            json['rate_entry_freshness_counts'],
+            'rate_entry_freshness_counts',
+          ),
+        ),
+        staleEntryCount: _requiredInt(json, 'stale_entry_count'),
+        fallbackEntryCount: _requiredInt(json, 'fallback_entry_count'),
+      );
+}
+
+enum AnalyticsTrend {
+  growth,
+  decline,
+  unchanged;
+
+  static AnalyticsTrend fromJson(String value) => switch (value) {
+    'GROWTH' => AnalyticsTrend.growth,
+    'DECLINE' => AnalyticsTrend.decline,
+    'UNCHANGED' => AnalyticsTrend.unchanged,
+    _ => throw FormatException('Unknown analytics trend: "$value".'),
+  };
+}
+
+class AnalyticsResponse {
+  AnalyticsResponse({
+    required this.baseCurrency,
+    required this.quoteCurrency,
+    required this.period,
+    required List<AnalyticsPoint> points,
+    required this.provenanceSummary,
+    required this.empty,
+    this.minimum,
+    this.maximum,
+    this.average,
+    this.absoluteChange,
+    this.percentageChange,
+    this.trend,
+    this.message,
+  }) : points = List.unmodifiable(points);
+
+  final String baseCurrency;
+  final String quoteCurrency;
+  final AnalyticsPeriod period;
+  final List<AnalyticsPoint> points;
+  final String? minimum;
+  final String? maximum;
+  final String? average;
+  final String? absoluteChange;
+  final String? percentageChange;
+  final AnalyticsTrend? trend;
+  final ProvenanceSummary provenanceSummary;
+  final bool empty;
+  final String? message;
+
+  factory AnalyticsResponse.fromJson(Map<String, dynamic> json) =>
+      AnalyticsResponse(
+        baseCurrency: _requiredString(json, 'base_currency'),
+        quoteCurrency: _requiredString(json, 'quote_currency'),
+        period: AnalyticsPeriod.fromJson(_requiredString(json, 'period')),
+        points: _requiredList(json, 'points')
+            .map(
+              (value) => AnalyticsPoint.fromJson(
+                _requiredObject(value, 'points item'),
+              ),
+            )
+            .toList(growable: false),
+        minimum: _optionalString(json, 'minimum'),
+        maximum: _optionalString(json, 'maximum'),
+        average: _optionalString(json, 'average'),
+        absoluteChange: _optionalString(json, 'absolute_change'),
+        percentageChange: _optionalString(json, 'percentage_change'),
+        trend: json['trend'] == null
+            ? null
+            : AnalyticsTrend.fromJson(_requiredString(json, 'trend')),
+        provenanceSummary: ProvenanceSummary.fromJson(
+          _requiredObject(json['provenance_summary'], 'provenance_summary'),
+        ),
+        empty: _requiredBool(json, 'empty'),
+        message: _optionalString(json, 'message'),
+      );
+}
+
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];
   if (value is String) {
@@ -262,3 +464,17 @@ Map<String, dynamic> _requiredObject(Object? value, String fieldName) {
   }
   throw FormatException('Expected "$fieldName" to be a JSON object.');
 }
+
+String? _optionalString(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value == null || value is String) return value as String?;
+  throw FormatException('Expected "$key" to be a string or null.');
+}
+
+List<String> _requiredStringList(Map<String, dynamic> json, String key) =>
+    _requiredList(json, key)
+        .map((value) {
+          if (value is String) return value;
+          throw FormatException('Expected "$key" items to be strings.');
+        })
+        .toList(growable: false);

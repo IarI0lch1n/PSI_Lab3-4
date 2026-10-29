@@ -28,8 +28,38 @@ class RatesApiClient {
     return ConversionResponse.fromJson(json);
   }
 
-  Future<Map<String, dynamic>> _getJson(String endpoint) async {
-    final uri = Uri.parse('$_baseUrl/$endpoint');
+  Future<HistoryResponse> getHistory(
+    String baseCurrency,
+    String quoteCurrency,
+    AnalyticsPeriod period,
+  ) async {
+    final json = await _getJson('history', {
+      'base_currency': baseCurrency,
+      'quote_currency': quoteCurrency,
+      'period': period.wireValue,
+    });
+    return HistoryResponse.fromJson(json);
+  }
+
+  Future<AnalyticsResponse> getAnalytics(
+    String baseCurrency,
+    String quoteCurrency,
+    AnalyticsPeriod period,
+  ) async {
+    final json = await _getJson('analytics', {
+      'base_currency': baseCurrency,
+      'quote_currency': quoteCurrency,
+      'period': period.wireValue,
+    });
+    return AnalyticsResponse.fromJson(json);
+  }
+
+  Future<Map<String, dynamic>> _getJson(
+    String endpoint, [
+    Map<String, String>? queryParameters,
+  ]) async {
+    final uri = Uri.parse('$_baseUrl/$endpoint')
+        .replace(queryParameters: queryParameters);
     final response = await client.get(uri);
     return _decodeJsonResponse(uri, response, method: 'GET');
   }
