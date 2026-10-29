@@ -76,6 +76,11 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
       appBar: AppBar(
         title: const Text('CurrencyHub'),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.of(context).pushNamed('/all-currencies'),
+            icon: const Icon(Icons.table_chart_outlined),
+            tooltip: 'All currencies',
+          ),
           TextButton.icon(
             onPressed: () => Navigator.of(context).pushNamed('/converter'),
             icon: const Icon(Icons.calculate_outlined),

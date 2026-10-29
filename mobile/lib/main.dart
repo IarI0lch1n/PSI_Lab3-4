@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'core/api/rates_api_client.dart';
 import 'features/converter/presentation/converter_screen.dart';
 import 'features/rates/presentation/current_rates_screen.dart';
+import 'features/rates/presentation/all_currencies_screen.dart';
 
 void main() {
   runApp(const CurrencyHubApp());
@@ -38,7 +39,10 @@ class _CurrencyHubAppState extends State<CurrencyHubApp> {
     return MaterialApp(
       title: 'CurrencyHub',
       home: CurrentRatesScreen(apiClient: _apiClient),
-      routes: {'/converter': (_) => ConverterScreen(apiClient: _apiClient)},
+      routes: {
+        '/converter': (_) => ConverterScreen(apiClient: _apiClient),
+        '/all-currencies': (_) => AllCurrenciesScreen(apiClient: _apiClient),
+      },
     );
   }
 }
