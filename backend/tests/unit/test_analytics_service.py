@@ -24,7 +24,11 @@ class StubRepository:
         currency_codes: tuple[str, ...],
     ) -> tuple[RateSnapshot, ...]:
         self.requests.append((start_at, end_at, currency_codes))
-        return self.snapshots
+        return tuple(
+            snapshot
+            for snapshot in self.snapshots
+            if start_at <= snapshot.captured_at <= end_at
+        )
 
 
 class StubUnitOfWork:
@@ -198,3 +202,62 @@ def test_empty_and_same_currency_results_are_explicit() -> None:
     assert same.points[0].value == Decimal("1")
     assert same.points[0].source_rate is same.points[0].target_rate
     assert repository.requests[0][2] == ("USD",)
+
+
+def test_period_windows_produce_distinct_7_day_and_30_day_statistics() -> None:
+    analytics, _ = service(
+        snapshot(1, "1", "4"),
+        snapshot(22, "2", "4"),
+        snapshot(28, "4", "4"),
+    )
+
+    seven_days = analytics.get_analytics("USD", "BTC", 7)
+    thirty_days = analytics.get_analytics("USD", "BTC", 30)
+
+    assert [point.date.day for point in seven_days.history.points] == [22, 28]
+    assert seven_days.minimum == Decimal("0.5")
+    assert seven_days.maximum == Decimal("1")
+    assert seven_days.average == Decimal("0.75")
+    assert seven_days.absolute_change == Decimal("0.5")
+    assert seven_days.percentage_change == Decimal("100")
+    assert seven_days.trend is Trend.GROWTH
+    assert [point.date.day for point in thirty_days.history.points] == [1, 22, 28]
+    assert thirty_days.minimum == Decimal("0.25")
+    assert thirty_days.maximum == Decimal("1")
+    assert thirty_days.average == Decimal("0.5833333333333333333333333333")
+    assert thirty_days.absolute_change == Decimal("0.75")
+    assert thirty_days.percentage_change == Decimal("300")
+
+
+def test_mixed_providers_and_snapshot_date_remain_distinct_from_effective_time() -> None:
+    analytics, repository = service(
+        snapshot(27, "2", "4", usd_provider="BNM"),
+        snapshot(
+            28,
+            "3",
+            "4",
+            usd_provider="Emergency Fiat Feed",
+            freshness=FreshnessState.CACHED,
+            stale=True,
+        ),
+    )
+
+    result = analytics.get_analytics("USD", "BTC", 7)
+
+    assert result.provenance.source_providers == (
+        "BNM",
+        "Emergency Fiat Feed",
+    )
+    assert result.provenance.target_providers == ("CoinGecko",)
+    point = result.history.points[-1]
+    assert point.date.isoformat() == "2026-10-28"
+    assert point.source_rate.effective_at.isoformat() == "2026-10-20T08:00:00+00:00"
+    assert point.target_rate.effective_at.isoformat() == "2026-10-20T08:00:00+00:00"
+    assert point.snapshot_id == next(
+        snapshot.snapshot_id
+        for snapshot in repository.snapshots
+        if snapshot.captured_at.day == 28
+    )
+    assert result.provenance.cached_entry_count == 1
+    assert result.provenance.stale_entry_count == 1
+    assert result.provenance.fallback_entry_count == 0
