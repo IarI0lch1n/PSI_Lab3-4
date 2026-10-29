@@ -112,7 +112,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 
 **Independent Test**: Seed a fake normalized history for both legs, request both periods, and verify complete ordered points include represented dates, both rate contexts with all freshness fields and snapshot references, and accurate statistics/provenance summaries; incomplete points are excluded and empty history returns the documented empty state.
 
-- [ ] T042 [P] [US4] Add BNM historical-rate fetching and XML/date normalization for the 30-day bootstrap in `backend/app/infrastructure/providers/bnm_rate_provider.py`
+- [x] T042 [P] [US4] Add BNM historical-rate fetching and XML/date normalization for the 30-day bootstrap in `backend/app/infrastructure/providers/bnm_rate_provider.py`
 - [ ] T043 [P] [US4] Add crypto-provider historical-rate fetching and timestamp normalization for the 30-day bootstrap in `backend/app/infrastructure/providers/coingecko_rate_provider.py`
 - [ ] T044 [US4] Implement first-run historical bootstrap for up to 30 available days and persist normalized per-currency entries under snapshots in `backend/app/application/use_cases/bootstrap_history.py`
 - [ ] T045 [US4] Implement historical entry queries and derive complete pair points and provenance from normalized rates without pairwise storage in `backend/app/infrastructure/repositories/rate_repository.py` and `backend/app/application/services/analytics_service.py`

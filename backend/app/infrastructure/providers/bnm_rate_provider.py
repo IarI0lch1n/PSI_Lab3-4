@@ -1,7 +1,7 @@
-"""BNM XML adapter for current normalized fiat exchange rates."""
+"""BNM XML adapter for normalized current and historical fiat rates."""
 
 from collections.abc import Callable, Mapping, Sequence
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, DecimalException
 from typing import Final
 from xml.etree import ElementTree
@@ -24,7 +24,7 @@ class BnmRateProviderError(RuntimeError):
 
 
 class BnmRateProvider(RateProvider):
-    """Fetch and normalize current BNM rates without applying freshness policy."""
+    """Fetch and normalize BNM rates without applying freshness policy."""
 
     def __init__(
         self,
@@ -54,10 +54,53 @@ class BnmRateProvider(RateProvider):
         start_at: datetime,
         end_at: datetime,
     ) -> Sequence[ProviderRate]:
-        """Historical fetching is implemented by the separate T042 task."""
-        del currency_codes, start_at, end_at
-        raise NotImplementedError(
-            "Historical BNM rate fetching is implemented by task T042."
+        """Fetch available official rates in an inclusive Moldova date window."""
+        start_date = self._moldova_date(start_at, "start_at")
+        end_date = self._moldova_date(end_at, "end_at")
+        if start_date > end_date:
+            raise BnmRateProviderError("Historical start_at must not follow end_at.")
+
+        requested_codes = {
+            code.strip().upper()
+            for code in currency_codes
+            if code.strip().upper() in SUPPORTED_FIAT_CURRENCIES
+            and code.strip().upper() != "MDL"
+        }
+        if not requested_codes:
+            return ()
+
+        rates_by_date_and_code: dict[tuple[date, str], ProviderRate] = {}
+        requested_date = start_date
+        while requested_date <= end_date:
+            response = await self._request_rates(
+                requested_date.strftime("%d.%m.%Y")
+            )
+            if response.content.strip():
+                for rate in self._parse_xml(response.text):
+                    effective_date = rate.effective_at.astimezone(
+                        _MOLDOVA_TIMEZONE
+                    ).date()
+                    if (
+                        rate.currency in requested_codes
+                        and start_date <= effective_date <= end_date
+                    ):
+                        rates_by_date_and_code.setdefault(
+                            (effective_date, rate.currency),
+                            rate,
+                        )
+            requested_date += timedelta(days=1)
+
+        currency_order = {
+            code: index for index, code in enumerate(SUPPORTED_FIAT_CURRENCIES)
+        }
+        return tuple(
+            sorted(
+                rates_by_date_and_code.values(),
+                key=lambda rate: (
+                    rate.effective_at,
+                    currency_order[rate.currency],
+                ),
+            )
         )
 
     async def get_metadata(self) -> Mapping[str, str]:
@@ -203,3 +246,11 @@ class BnmRateProvider(RateProvider):
     @staticmethod
     def _moldova_today() -> date:
         return datetime.now(_MOLDOVA_TIMEZONE).date()
+
+    @staticmethod
+    def _moldova_date(value: datetime, field_name: str) -> date:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise BnmRateProviderError(
+                f"Historical {field_name} must be timezone-aware."
+            )
+        return value.astimezone(_MOLDOVA_TIMEZONE).date()
