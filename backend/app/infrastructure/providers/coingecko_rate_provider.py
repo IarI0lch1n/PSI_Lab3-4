@@ -1,4 +1,4 @@
-"""CoinGecko adapter for current normalized cryptocurrency rates."""
+"""CoinGecko adapter for normalized current and historical crypto rates."""
 
 import json
 from collections.abc import Callable, Mapping, Sequence
@@ -42,7 +42,7 @@ class CoinGeckoRateProviderError(RuntimeError):
 
 
 class CoinGeckoRateProvider(RateProvider):
-    """Fetch and normalize CoinGecko current prices without freshness policy."""
+    """Fetch and normalize CoinGecko prices without freshness policy."""
 
     def __init__(
         self,
@@ -75,10 +75,55 @@ class CoinGeckoRateProvider(RateProvider):
         start_at: datetime,
         end_at: datetime,
     ) -> Sequence[ProviderRate]:
-        """Historical fetching is implemented by the separate T043 task."""
-        del currency_codes, start_at, end_at
-        raise NotImplementedError(
-            "Historical CoinGecko rate fetching is implemented by task T043."
+        """Fetch exact MDL price points in an inclusive UTC time window."""
+        start_utc = self._aware_utc(start_at, "start_at")
+        end_utc = self._aware_utc(end_at, "end_at")
+        if start_utc > end_utc:
+            raise CoinGeckoRateProviderError(
+                "Historical start_at must not follow end_at."
+            )
+
+        requested_codes = {
+            code.strip().upper()
+            for code in currency_codes
+            if code.strip().upper() in SUPPORTED_CRYPTO_CURRENCIES
+        }
+        if not requested_codes:
+            return ()
+
+        rates: list[ProviderRate] = []
+        for currency_code in SUPPORTED_CRYPTO_CURRENCIES:
+            if currency_code not in requested_codes:
+                continue
+            response = await self._request_market_chart(
+                _COINGECKO_IDS[currency_code],
+                start_utc,
+                end_utc,
+            )
+            if not response.content.strip():
+                raise CoinGeckoRateProviderError(
+                    "CoinGecko returned an empty historical JSON response."
+                )
+            rates.extend(
+                self._parse_market_chart_response(
+                    response.text,
+                    currency_code,
+                    start_utc,
+                    end_utc,
+                )
+            )
+
+        currency_order = {
+            code: index for index, code in enumerate(SUPPORTED_CRYPTO_CURRENCIES)
+        }
+        return tuple(
+            sorted(
+                rates,
+                key=lambda rate: (
+                    rate.effective_at,
+                    currency_order[rate.currency],
+                ),
+            )
         )
 
     async def get_metadata(self) -> Mapping[str, str]:
@@ -99,6 +144,27 @@ class CoinGeckoRateProvider(RateProvider):
             "vs_currencies": "mdl",
             "include_last_updated_at": "true",
         }
+        return await self._request(url, params)
+
+    async def _request_market_chart(
+        self,
+        coin_id: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> httpx.Response:
+        url = f"{self._base_url}/coins/{coin_id}/market_chart/range"
+        params = {
+            "vs_currency": "mdl",
+            "from": str(self._unix_seconds(start_at)),
+            "to": str(self._unix_seconds(end_at, round_up=True)),
+        }
+        return await self._request(url, params)
+
+    async def _request(
+        self,
+        url: str,
+        params: Mapping[str, str],
+    ) -> httpx.Response:
         headers = (
             {"x-cg-demo-api-key": self._api_key}
             if self._api_key is not None
@@ -142,6 +208,65 @@ class CoinGeckoRateProvider(RateProvider):
         raise CoinGeckoRateProviderError(
             "CoinGecko request failed without a response."
         )
+
+    @classmethod
+    def _parse_market_chart_response(
+        cls,
+        body: str,
+        currency_code: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> tuple[ProviderRate, ...]:
+        try:
+            data = json.loads(
+                body,
+                parse_float=Decimal,
+                parse_int=Decimal,
+                parse_constant=Decimal,
+            )
+        except (json.JSONDecodeError, DecimalException, ValueError):
+            raise CoinGeckoRateProviderError(
+                "CoinGecko returned malformed historical JSON."
+            ) from None
+
+        if not isinstance(data, dict) or not isinstance(
+            data.get("prices"), list
+        ):
+            raise CoinGeckoRateProviderError(
+                "CoinGecko historical JSON must contain a prices array."
+            )
+
+        rates_by_timestamp: dict[datetime, ProviderRate] = {}
+        for point in data["prices"]:
+            if not isinstance(point, list) or len(point) < 2:
+                raise CoinGeckoRateProviderError(
+                    "CoinGecko historical prices contain an invalid point."
+                )
+            timestamp, price = point[0], point[1]
+            effective_at = cls._parse_millisecond_timestamp(timestamp)
+            if (
+                not isinstance(price, Decimal)
+                or not price.is_finite()
+                or price <= 0
+            ):
+                raise CoinGeckoRateProviderError(
+                    "CoinGecko historical prices contain an invalid MDL price."
+                )
+            if not start_at <= effective_at <= end_at:
+                continue
+            if effective_at in rates_by_timestamp:
+                raise CoinGeckoRateProviderError(
+                    "CoinGecko historical prices contain a duplicate timestamp."
+                )
+            rates_by_timestamp[effective_at] = ProviderRate(
+                currency=currency_code,
+                normalized_rate_to_mdl=price,
+                nominal_unit=1,
+                provider_name=_PROVIDER_NAME,
+                provider_type=CurrencyType.CRYPTO,
+                effective_at=effective_at,
+            )
+        return tuple(rates_by_timestamp.values())
 
     @classmethod
     def _parse_response(cls, body: str) -> tuple[ProviderRate, ...]:
@@ -229,6 +354,41 @@ class CoinGeckoRateProvider(RateProvider):
             raise CoinGeckoRateProviderError(
                 f"CoinGecko response for {coin_id} has an out-of-range last_updated_at."
             ) from None
+
+    @staticmethod
+    def _parse_millisecond_timestamp(value: object) -> datetime:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, Decimal)
+            or not value.is_finite()
+            or value <= 0
+            or value != value.to_integral_value()
+        ):
+            raise CoinGeckoRateProviderError(
+                "CoinGecko historical prices contain an invalid timestamp."
+            )
+        try:
+            return _UNIX_EPOCH + timedelta(milliseconds=int(value))
+        except (OverflowError, ValueError):
+            raise CoinGeckoRateProviderError(
+                "CoinGecko historical prices contain an out-of-range timestamp."
+            ) from None
+
+    @staticmethod
+    def _aware_utc(value: datetime, field_name: str) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise CoinGeckoRateProviderError(
+                f"Historical {field_name} must be timezone-aware."
+            )
+        return value.astimezone(UTC)
+
+    @staticmethod
+    def _unix_seconds(value: datetime, *, round_up: bool = False) -> int:
+        elapsed = value - _UNIX_EPOCH
+        seconds = elapsed.days * 86_400 + elapsed.seconds
+        if round_up and elapsed.microseconds:
+            seconds += 1
+        return seconds
 
     @staticmethod
     def _configured_api_key(value: str) -> str | None:
