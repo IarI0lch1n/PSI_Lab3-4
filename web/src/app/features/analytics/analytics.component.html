@@ -1,0 +1,154 @@
+<main class="analytics-page">
+  <header class="page-header">
+    <p class="brand">CurrencyHub</p>
+    <h1>Rate Analytics</h1>
+    <p>Explore complete daily pair values and the exact rate context behind every point.</p>
+  </header>
+
+  <section class="controls" aria-label="Analytics controls">
+    <label>
+      Base currency
+      <select [value]="baseCurrency()" (change)="setBaseCurrency($event)">
+        @for (currency of currencies(); track currency.code) {
+          <option [value]="currency.code">{{ currency.code }} - {{ currency.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Quote currency
+      <select [value]="quoteCurrency()" (change)="setQuoteCurrency($event)">
+        @for (currency of currencies(); track currency.code) {
+          <option [value]="currency.code">{{ currency.code }} - {{ currency.name }}</option>
+        }
+      </select>
+    </label>
+    <fieldset>
+      <legend>Period</legend>
+      <button type="button" [class.active]="period() === '7d'" (click)="setPeriod('7d')">
+        7 days
+      </button>
+      <button type="button" [class.active]="period() === '30d'" (click)="setPeriod('30d')">
+        30 days
+      </button>
+    </fieldset>
+  </section>
+
+  @let viewState = state();
+  @if (viewState.status === 'loading') {
+    <section class="message-panel" aria-live="polite" aria-busy="true">
+      Loading historical analytics...
+    </section>
+  } @else if (viewState.status === 'error') {
+    <section class="message-panel error-panel" role="alert">
+      <h2>Analytics are unavailable.</h2>
+      <p>We couldn't load a complete, consistent historical dataset.</p>
+      <button type="button" (click)="retry()">Retry</button>
+    </section>
+  } @else if (viewState.history.empty) {
+    <section class="message-panel empty-panel">
+      <h2>No historical data</h2>
+      <p>{{ viewState.history.message }}</p>
+    </section>
+  } @else {
+    <section class="metrics" aria-label="Period statistics">
+      <article>
+        <span>Minimum</span><strong>{{ viewState.analytics.minimum }}</strong>
+      </article>
+      <article>
+        <span>Maximum</span><strong>{{ viewState.analytics.maximum }}</strong>
+      </article>
+      <article>
+        <span>Average</span><strong>{{ viewState.analytics.average }}</strong>
+      </article>
+      <article>
+        <span>Absolute change</span><strong>{{ viewState.analytics.absolute_change }}</strong>
+      </article>
+      <article>
+        <span>Percentage change</span><strong>{{ viewState.analytics.percentage_change }}%</strong>
+      </article>
+      <article>
+        <span>Trend</span><strong>{{ viewState.analytics.trend | titlecase }}</strong>
+      </article>
+    </section>
+
+    <section class="provenance-summary" aria-label="Period provenance summary">
+      <h2>Data context</h2>
+      <dl>
+        <div>
+          <dt>Base providers</dt>
+          <dd>{{ viewState.analytics.provenance_summary.source_providers.join(', ') }}</dd>
+        </div>
+        <div>
+          <dt>Quote providers</dt>
+          <dd>{{ viewState.analytics.provenance_summary.target_providers.join(', ') }}</dd>
+        </div>
+        <div>
+          <dt>Live entries</dt>
+          <dd>{{ viewState.analytics.provenance_summary.rate_entry_freshness_counts.live }}</dd>
+        </div>
+        <div>
+          <dt>Fallback entries</dt>
+          <dd>{{ viewState.analytics.provenance_summary.rate_entry_freshness_counts.fallback }}</dd>
+        </div>
+        <div>
+          <dt>Cached entries</dt>
+          <dd>{{ viewState.analytics.provenance_summary.rate_entry_freshness_counts.cached }}</dd>
+        </div>
+        <div>
+          <dt>Stale entries</dt>
+          <dd>{{ viewState.analytics.provenance_summary.stale_entry_count }}</dd>
+        </div>
+        <div>
+          <dt>Fallback used</dt>
+          <dd>{{ viewState.analytics.provenance_summary.fallback_entry_count }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="point-list" aria-label="Historical points">
+      @for (point of viewState.history.points; track point.rate_context.snapshot_id) {
+        <article class="point-card">
+          <header>
+            <time [attr.datetime]="point.date">{{ point.date }}</time
+            ><strong>{{ point.value }}</strong>
+          </header>
+          <div class="leg-grid">
+            <section>
+              <h3>Base: {{ point.rate_context.source_rate.currency }}</h3>
+              <p>{{ point.rate_context.source_rate.provider_name }}</p>
+              <time [attr.datetime]="point.rate_context.source_rate.effective_at">{{
+                point.rate_context.source_rate.effective_at
+              }}</time>
+              <div class="badges">
+                <span>{{ point.rate_context.source_rate.freshness_state | titlecase }}</span>
+                @if (point.rate_context.source_rate.is_fallback) {
+                  <span>Fallback used</span>
+                }
+                @if (point.rate_context.source_rate.is_stale) {
+                  <span>Stale</span>
+                }
+              </div>
+            </section>
+            <section>
+              <h3>Quote: {{ point.rate_context.target_rate.currency }}</h3>
+              <p>{{ point.rate_context.target_rate.provider_name }}</p>
+              <time [attr.datetime]="point.rate_context.target_rate.effective_at">{{
+                point.rate_context.target_rate.effective_at
+              }}</time>
+              <div class="badges">
+                <span>{{ point.rate_context.target_rate.freshness_state | titlecase }}</span>
+                @if (point.rate_context.target_rate.is_fallback) {
+                  <span>Fallback used</span>
+                }
+                @if (point.rate_context.target_rate.is_stale) {
+                  <span>Stale</span>
+                }
+              </div>
+            </section>
+          </div>
+          <small>Snapshot {{ point.rate_context.snapshot_id }}</small>
+        </article>
+      }
+    </section>
+  }
+</main>
