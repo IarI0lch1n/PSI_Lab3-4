@@ -121,7 +121,7 @@ Every task follows `- [ ] T### [P?] [Story?] Description with file path`. `[P]` 
 - [x] T048 [P] [US4] Build Angular 7-day/30-day analytics views showing both per-point rate contexts and mixed-provider, primary freshness, stale, and fallback summaries in `web/src/app/features/analytics/analytics.component.ts` and `web/src/app/features/analytics/analytics.component.html`
 - [x] T049 [US4] Add Angular analytics tests for metrics, empty state, period selection, per-point live/fallback/cached/stale status, and aggregate stale/fallback counts in `web/tests/analytics.component.spec.ts`
 - [x] T050 [P] [US4] Build Flutter 7-day/30-day analytics views showing both per-point rate contexts and mixed-provider, primary freshness, stale, and fallback summaries in `mobile/lib/features/analytics/presentation/analytics_screen.dart`
-- [ ] T051 [US4] Add Flutter analytics widget tests for metrics, empty state, period selection, per-point live/fallback/cached/stale status, and aggregate stale/fallback counts in `mobile/test/features/analytics/analytics_screen_test.dart`
+- [x] T051 [US4] Add Flutter analytics widget tests for metrics, empty state, period selection, per-point live/fallback/cached/stale status, and aggregate stale/fallback counts in `mobile/test/features/analytics/analytics_screen_test.dart`
 
 **Checkpoint**: User Story 4 works from bootstrapped or continuing history and preserves both rate legs' provenance on every complete point.
 
