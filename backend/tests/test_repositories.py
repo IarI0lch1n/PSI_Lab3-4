@@ -348,3 +348,29 @@ def test_historical_query_empty_currency_filter_returns_no_snapshots() -> None:
     assert session.statements == []
     assert "is_stale" not in RateEntryModel.__table__.columns
     assert "pair" not in RateSnapshotModel.__table__.columns
+
+
+@pytest.mark.parametrize(
+    ("start_at", "end_at", "message"),
+    [
+        (
+            datetime(2026, 10, 1),
+            datetime(2026, 10, 2, tzinfo=UTC),
+            "start_at must be timezone-aware",
+        ),
+        (
+            datetime(2026, 10, 2, tzinfo=UTC),
+            datetime(2026, 10, 1, tzinfo=UTC),
+            "must not follow",
+        ),
+    ],
+)
+def test_historical_query_rejects_invalid_windows(
+    start_at: datetime,
+    end_at: datetime,
+    message: str,
+) -> None:
+    repository = SqlAlchemyRateRepository(_Session())
+
+    with pytest.raises(ValueError, match=message):
+        repository.get_historical_snapshots(start_at, end_at)

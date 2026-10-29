@@ -5,6 +5,7 @@ import 'core/api/rates_api_client.dart';
 import 'features/converter/presentation/converter_screen.dart';
 import 'features/rates/presentation/current_rates_screen.dart';
 import 'features/rates/presentation/all_currencies_screen.dart';
+import 'features/analytics/presentation/analytics_screen.dart';
 
 void main() {
   runApp(const CurrencyHubApp());
@@ -42,6 +43,7 @@ class _CurrencyHubAppState extends State<CurrencyHubApp> {
       routes: {
         '/converter': (_) => ConverterScreen(apiClient: _apiClient),
         '/all-currencies': (_) => AllCurrenciesScreen(apiClient: _apiClient),
+        '/analytics': (_) => AnalyticsScreen(apiClient: _apiClient),
       },
     );
   }

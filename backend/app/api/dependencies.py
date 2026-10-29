@@ -7,6 +7,7 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.services.snapshot_service import SnapshotService
+from app.application.services.analytics_service import AnalyticsService
 from app.application.use_cases.convert_currency import ConvertCurrency
 from app.application.use_cases.get_latest_snapshot import GetLatestSnapshot
 from app.application.use_cases.list_currencies import ListCurrencies
@@ -63,6 +64,13 @@ def get_convert_currency_use_case(
 ) -> ConvertCurrency:
     """Construct the conversion use case with its own unentered UnitOfWork."""
     return ConvertCurrency(unit_of_work=_create_unit_of_work(settings))
+
+
+def get_analytics_service(
+    settings: Settings = Depends(get_app_settings),
+) -> AnalyticsService:
+    """Construct historical analytics with its own UnitOfWork."""
+    return AnalyticsService(unit_of_work=_create_unit_of_work(settings))
 
 
 def get_rate_provider_factory(

@@ -54,3 +54,58 @@ export interface ConversionResponse {
   readonly rate_value: string;
   readonly rate_context: RateContext;
 }
+
+export type AnalyticsPeriod = '7d' | '30d';
+
+export interface HistoryPoint {
+  readonly date: string;
+  readonly value: string;
+  readonly rate_context: RateContext;
+}
+
+export interface HistoryResponse {
+  readonly base_currency: string;
+  readonly quote_currency: string;
+  readonly period: AnalyticsPeriod;
+  readonly points: readonly HistoryPoint[];
+  readonly empty: boolean;
+  readonly message?: string;
+}
+
+export interface AnalyticsPoint {
+  readonly date: string;
+  readonly value: string;
+}
+
+export interface RateEntryFreshnessCounts {
+  readonly live: number;
+  readonly fallback: number;
+  readonly cached: number;
+}
+
+export interface ProvenanceSummary {
+  readonly point_count: number;
+  readonly source_providers: readonly string[];
+  readonly target_providers: readonly string[];
+  readonly rate_entry_freshness_counts: RateEntryFreshnessCounts;
+  readonly stale_entry_count: number;
+  readonly fallback_entry_count: number;
+}
+
+export type AnalyticsTrend = 'GROWTH' | 'DECLINE' | 'UNCHANGED';
+
+export interface AnalyticsResponse {
+  readonly base_currency: string;
+  readonly quote_currency: string;
+  readonly period: AnalyticsPeriod;
+  readonly points: readonly AnalyticsPoint[];
+  readonly minimum?: string;
+  readonly maximum?: string;
+  readonly average?: string;
+  readonly absolute_change?: string;
+  readonly percentage_change?: string;
+  readonly trend?: AnalyticsTrend;
+  readonly provenance_summary: ProvenanceSummary;
+  readonly empty: boolean;
+  readonly message?: string;
+}

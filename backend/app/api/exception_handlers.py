@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.application.services.snapshot_service import SnapshotAssemblyError
+from app.application.services.analytics_service import AnalyticsInputError
 from app.application.use_cases.convert_currency import (
     ConversionRateUnavailableError,
     ConversionSnapshotUnavailableError,
@@ -32,6 +33,18 @@ async def handle_invalid_conversion_input_error(
         422,
         "invalid_conversion_input",
         "Amount and currencies must be valid and supported.",
+    )
+
+
+async def handle_analytics_input_error(
+    request: Request,
+    exc: AnalyticsInputError,
+) -> JSONResponse:
+    del request, exc
+    return _error_response(
+        422,
+        "invalid_analytics_input",
+        "Currencies and period must be valid and supported.",
     )
 
 
@@ -137,6 +150,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         InvalidConversionInputError,
         handle_invalid_conversion_input_error,
     )
+    app.add_exception_handler(AnalyticsInputError, handle_analytics_input_error)
     app.add_exception_handler(
         ConversionSnapshotUnavailableError,
         handle_conversion_snapshot_unavailable_error,

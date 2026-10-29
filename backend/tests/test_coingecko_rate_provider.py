@@ -52,6 +52,18 @@ def _payload(
 def _encoded(payload: object) -> str:
     body = json.dumps(payload, default=str)
     if isinstance(payload, dict):
+        prices = payload.get("prices")
+        if isinstance(prices, list):
+            for point in prices:
+                if not isinstance(point, list):
+                    continue
+                for value in point:
+                    if isinstance(value, Decimal):
+                        body = body.replace(
+                            json.dumps(str(value)),
+                            str(value),
+                            1,
+                        )
         for coin_data in payload.values():
             if not isinstance(coin_data, dict):
                 continue
@@ -367,14 +379,142 @@ async def test_transport_failure_retries_without_live_network() -> None:
 
 
 @pytest.mark.asyncio
-async def test_historical_fetching_is_explicitly_deferred_to_t043() -> None:
-    provider = CoinGeckoRateProvider(
-        settings=Settings(coingecko_base_url=_BASE_URL)
-    )
+async def test_historical_requests_each_selected_coin_and_normalizes_timestamps() -> None:
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    middle = datetime(2026, 10, 1, 12, 30, tzinfo=UTC)
+    end = datetime(2026, 10, 2, tzinfo=UTC)
+    requests: list[httpx.Request] = []
 
-    with pytest.raises(NotImplementedError, match="T043"):
-        await provider.fetch_historical_rates(
-            ["BTC"],
-            datetime(2026, 10, 1, tzinfo=UTC),
-            datetime(2026, 10, 28, tzinfo=UTC),
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        offset = Decimal("0.000000000000000001")
+        body = {
+            "prices": [
+                [int(start.timestamp() * 1000) - 1, 999],
+                [int(start.timestamp() * 1000), Decimal("10.123456789012345678")],
+                [int(middle.timestamp() * 1000), Decimal("11.123456789012345678")],
+                [int(end.timestamp() * 1000) + 1, 999],
+            ]
+        }
+        if "/ethereum/" in request.url.path:
+            for point in body["prices"]:
+                point[1] += offset
+        return httpx.Response(200, text=_encoded(body), request=request)
+
+    provider, client = _provider(handler, api_key="history-key")
+    try:
+        rates = await provider.fetch_historical_rates(
+            [" eth ", "BTC", "USD"],
+            start,
+            end,
         )
+    finally:
+        await client.aclose()
+
+    assert [request.url.path for request in requests] == [
+        "/api/v3/coins/bitcoin/market_chart/range",
+        "/api/v3/coins/ethereum/market_chart/range",
+    ]
+    for request in requests:
+        assert request.url.params["vs_currency"] == "mdl"
+        assert request.url.params["from"] == str(int(start.timestamp()))
+        assert request.url.params["to"] == str(int(end.timestamp()))
+        assert request.headers["x-cg-demo-api-key"] == "history-key"
+    assert [(rate.effective_at, rate.currency) for rate in rates] == [
+        (start, "BTC"),
+        (start, "ETH"),
+        (middle, "BTC"),
+        (middle, "ETH"),
+    ]
+    assert rates[0].normalized_rate_to_mdl == Decimal(
+        "10.123456789012345678"
+    )
+    assert rates[1].normalized_rate_to_mdl == Decimal(
+        "10.123456789012345679"
+    )
+    assert all(rate.provider_name == "CoinGecko" for rate in rates)
+    assert all(rate.provider_type is CurrencyType.CRYPTO for rate in rates)
+    assert all(rate.nominal_unit == 1 for rate in rates)
+    assert all(rate.effective_at.tzinfo is UTC for rate in rates)
+
+
+@pytest.mark.asyncio
+async def test_historical_non_crypto_request_returns_without_http_calls() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500, request=request)
+
+    provider, client = _provider(handler)
+    try:
+        rates = await provider.fetch_historical_rates(
+            ["USD", "MDL", "UNKNOWN"],
+            datetime(2026, 10, 1, tzinfo=UTC),
+            datetime(2026, 10, 2, tzinfo=UTC),
+        )
+    finally:
+        await client.aclose()
+
+    assert rates == ()
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        ("", "empty historical JSON"),
+        ("{", "malformed historical JSON"),
+        ('{"prices": {}}', "prices array"),
+        ('{"prices": [[1]]}', "invalid point"),
+        ('{"prices": [[1, 0]]}', "invalid MDL price"),
+        ('{"prices": [[1.5, 1]]}', "invalid timestamp"),
+        ('{"prices": [[1000, 1], [1000, 2]]}', "duplicate timestamp"),
+    ],
+)
+async def test_historical_rejects_invalid_payloads(body: str, message: str) -> None:
+    provider, client = _provider(
+        lambda request: httpx.Response(200, text=body, request=request)
+    )
+    try:
+        with pytest.raises(CoinGeckoRateProviderError, match=message):
+            await provider.fetch_historical_rates(
+                ["BTC"],
+                datetime(1970, 1, 1, tzinfo=UTC),
+                datetime(2026, 10, 2, tzinfo=UTC),
+            )
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("start_at", "end_at", "message"),
+    [
+        (
+            datetime(2026, 10, 1),
+            datetime(2026, 10, 2, tzinfo=UTC),
+            "start_at must be timezone-aware",
+        ),
+        (
+            datetime(2026, 10, 2, tzinfo=UTC),
+            datetime(2026, 10, 1, tzinfo=UTC),
+            "must not follow",
+        ),
+    ],
+)
+async def test_historical_rejects_invalid_date_windows(
+    start_at: datetime,
+    end_at: datetime,
+    message: str,
+) -> None:
+    provider, client = _provider(
+        lambda request: httpx.Response(500, request=request)
+    )
+    try:
+        with pytest.raises(CoinGeckoRateProviderError, match=message):
+            await provider.fetch_historical_rates(["BTC"], start_at, end_at)
+    finally:
+        await client.aclose()

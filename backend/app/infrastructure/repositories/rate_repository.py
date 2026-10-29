@@ -109,6 +109,12 @@ class SqlAlchemyRateRepository(RateRepository):
         end_at: datetime,
         currency_codes: Sequence[str] | None = None,
     ) -> Sequence[RateSnapshot]:
+        if start_at.tzinfo is None or start_at.utcoffset() is None:
+            raise ValueError("Historical start_at must be timezone-aware.")
+        if end_at.tzinfo is None or end_at.utcoffset() is None:
+            raise ValueError("Historical end_at must be timezone-aware.")
+        if start_at > end_at:
+            raise ValueError("Historical start_at must not follow end_at.")
         normalized_codes = (
             {code.strip().upper() for code in currency_codes}
             if currency_codes is not None

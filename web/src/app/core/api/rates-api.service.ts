@@ -3,8 +3,11 @@ import { inject, Injectable, InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   CurrenciesResponse,
+  AnalyticsPeriod,
+  AnalyticsResponse,
   ConversionRequest,
   ConversionResponse,
+  HistoryResponse,
   RateSnapshot,
 } from '../models/rate.models';
 
@@ -28,5 +31,33 @@ export class RatesApiService {
 
   convert(request: ConversionRequest): Observable<ConversionResponse> {
     return this.http.post<ConversionResponse>(`${this.baseUrl}/convert`, request);
+  }
+
+  getHistory(
+    baseCurrency: string,
+    quoteCurrency: string,
+    period: AnalyticsPeriod,
+  ): Observable<HistoryResponse> {
+    return this.http.get<HistoryResponse>(`${this.baseUrl}/history`, {
+      params: {
+        base_currency: baseCurrency,
+        quote_currency: quoteCurrency,
+        period,
+      },
+    });
+  }
+
+  getAnalytics(
+    baseCurrency: string,
+    quoteCurrency: string,
+    period: AnalyticsPeriod,
+  ): Observable<AnalyticsResponse> {
+    return this.http.get<AnalyticsResponse>(`${this.baseUrl}/analytics`, {
+      params: {
+        base_currency: baseCurrency,
+        quote_currency: quoteCurrency,
+        period,
+      },
+    });
   }
 }

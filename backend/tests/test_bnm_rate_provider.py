@@ -259,15 +259,135 @@ async def test_transient_http_error_retries_using_configured_limit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_historical_fetching_is_explicitly_deferred_to_t042() -> None:
-    provider = BnmRateProvider(
-        settings=Settings(bnm_base_url=_BASE_URL),
-        today_provider=lambda: _REQUEST_DATE,
-    )
+async def test_historical_fetches_inclusive_moldova_dates_and_filters_codes() -> None:
+    requests: list[httpx.Request] = []
 
-    with pytest.raises(NotImplementedError, match="T042"):
-        await provider.fetch_historical_rates(
-            ["USD"],
-            datetime(2026, 10, 1, tzinfo=UTC),
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        requested_date = request.url.params["date"]
+        value = {
+            "26.10.2026": "17.1",
+            "27.10.2026": "17.2",
+            "28.10.2026": "17.3",
+        }[requested_date]
+        body = _xml(
+            _xml_row("USD", "1", value),
+            _xml_row("EUR", "1", "19.9"),
+            root_date=requested_date,
+        )
+        return httpx.Response(200, text=body, request=request)
+
+    provider, client = _provider(handler)
+    try:
+        rates = await provider.fetch_historical_rates(
+            [" usd ", "BTC"],
+            datetime(2026, 10, 26, tzinfo=UTC),
             datetime(2026, 10, 28, tzinfo=UTC),
         )
+    finally:
+        await client.aclose()
+
+    assert [request.url.params["date"] for request in requests] == [
+        "26.10.2026",
+        "27.10.2026",
+        "28.10.2026",
+    ]
+    assert [rate.currency for rate in rates] == ["USD", "USD", "USD"]
+    assert [rate.normalized_rate_to_mdl for rate in rates] == [
+        Decimal("17.1"),
+        Decimal("17.2"),
+        Decimal("17.3"),
+    ]
+    assert [rate.effective_at for rate in rates] == [
+        datetime(day=day, month=10, year=2026, tzinfo=ZoneInfo("Europe/Chisinau"))
+        for day in (26, 27, 28)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_historical_deduplicates_repeated_official_dates_and_skips_empty_days() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_date = request.url.params["date"]
+        if requested_date == "25.10.2026":
+            return httpx.Response(200, text=" ", request=request)
+        return httpx.Response(
+            200,
+            text=_xml(
+                _xml_row("USD", "1", "17.5"),
+                root_date="23.10.2026",
+            ),
+            request=request,
+        )
+
+    provider, client = _provider(handler)
+    try:
+        rates = await provider.fetch_historical_rates(
+            ["USD"],
+            datetime(2026, 10, 23, tzinfo=UTC),
+            datetime(2026, 10, 25, tzinfo=UTC),
+        )
+    finally:
+        await client.aclose()
+
+    assert len(rates) == 1
+    assert rates[0].effective_at == datetime(
+        2026, 10, 23, tzinfo=ZoneInfo("Europe/Chisinau")
+    )
+
+
+@pytest.mark.asyncio
+async def test_historical_non_fiat_request_returns_without_http_calls() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500, request=request)
+
+    provider, client = _provider(handler)
+    try:
+        rates = await provider.fetch_historical_rates(
+            ["BTC", "MDL", "UNKNOWN"],
+            datetime(2026, 10, 1, tzinfo=UTC),
+            datetime(2026, 10, 2, tzinfo=UTC),
+        )
+    finally:
+        await client.aclose()
+
+    assert rates == ()
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("start_at", "end_at", "message"),
+    [
+        (
+            datetime(2026, 10, 2),
+            datetime(2026, 10, 3, tzinfo=UTC),
+            "start_at must be timezone-aware",
+        ),
+        (
+            datetime(2026, 10, 2, tzinfo=UTC),
+            datetime(2026, 10, 1, tzinfo=UTC),
+            "must not follow",
+        ),
+    ],
+)
+async def test_historical_rejects_invalid_date_windows(
+    start_at: datetime,
+    end_at: datetime,
+    message: str,
+) -> None:
+    provider, client = _provider(
+        lambda request: httpx.Response(500, request=request)
+    )
+    try:
+        with pytest.raises(BnmRateProviderError, match=message):
+            await provider.fetch_historical_rates(
+                ["USD"],
+                start_at,
+                end_at,
+            )
+    finally:
+        await client.aclose()
