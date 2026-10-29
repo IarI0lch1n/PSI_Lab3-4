@@ -231,8 +231,10 @@ async def test_successful_refresh_saves_and_commits_complete_candidate() -> None
 
 
 @pytest.mark.asyncio
-async def test_incomplete_refresh_preserves_previous_snapshot_without_commit() -> None:
+async def test_refresh_activates_complete_candidate_with_reused_crypto_rates() -> None:
     previous = _previous_snapshot(_FRIDAY)
+    previous_btc = previous.get_rate("BTC")
+    assert previous_btc is not None
     unit_of_work = _FakeUnitOfWork(previous)
     use_case = _use_case(
         _MONDAY,
@@ -245,10 +247,26 @@ async def test_incomplete_refresh_preserves_previous_snapshot_without_commit() -
 
     result = await use_case.execute()
 
-    assert not result.updated
-    assert result.snapshot is previous
-    assert unit_of_work.rate_repository.saved == []
-    assert unit_of_work.commit_calls == 0
+    assert result.updated
+    assert result.snapshot is not previous
+    assert result.snapshot.snapshot_id == _SNAPSHOT_ID
+
+    usd = result.snapshot.get_rate("USD")
+    assert usd is not None
+    assert usd.provider_name == "Fake BNM"
+    assert usd.effective_at == _MONDAY
+    assert usd.freshness_state is FreshnessState.LIVE
+
+    btc = result.snapshot.get_rate("BTC")
+    assert btc is not None
+    assert btc.provider_name == previous_btc.provider_name
+    assert btc.effective_at == previous_btc.effective_at
+    assert btc.freshness_state is FreshnessState.CACHED
+    assert not btc.is_fallback
+    assert btc.is_stale
+
+    assert unit_of_work.rate_repository.saved == [result.snapshot]
+    assert unit_of_work.commit_calls == 1
 
 
 @pytest.mark.asyncio

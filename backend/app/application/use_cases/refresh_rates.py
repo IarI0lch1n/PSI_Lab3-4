@@ -64,11 +64,16 @@ class RefreshRates:
     ) -> RateSnapshot:
         """Return a complete validated candidate without persisting it."""
 
-        candidate, _ = await self._assemble_candidate(
-            previous_snapshot=previous_snapshot,
-            explicit_fallback_rates=explicit_fallback_rates,
+        service = SnapshotService(
+            self._providers,
+            clock=self._clock,
+            snapshot_id_factory=self._snapshot_id_factory,
+            freshness_policy=self._freshness_policy(previous_snapshot),
         )
-        return candidate
+        return await service.assemble_snapshot(
+            explicit_fallback_rates=explicit_fallback_rates,
+            previous_snapshot=previous_snapshot,
+        )
 
     async def execute(self) -> "RefreshResult":
         """Atomically replace the active snapshot only with a complete candidate."""
@@ -77,47 +82,12 @@ class RefreshRates:
             raise RuntimeError("Refresh execution requires a UnitOfWork.")
         with self._unit_of_work as uow:
             previous_snapshot = uow.rate_repository.get_latest_usable_snapshot()
-            candidate, reused_previous = await self._assemble_candidate(
+            candidate = await self.assemble_candidate(
                 previous_snapshot=previous_snapshot,
             )
-            if reused_previous:
-                if previous_snapshot is None:  # pragma: no cover - assembly invariant
-                    raise RuntimeError("Previous rates were reused without a snapshot.")
-                return RefreshResult(previous_snapshot, updated=False)
             uow.rate_repository.save_complete_snapshot(candidate)
             uow.commit()
             return RefreshResult(candidate, updated=True)
-
-    async def _assemble_candidate(
-        self,
-        *,
-        previous_snapshot: RateSnapshot | None,
-        explicit_fallback_rates: Sequence[ProviderRate] = (),
-    ) -> tuple[RateSnapshot, bool]:
-        reused_previous = False
-        base_policy = self._freshness_policy(previous_snapshot)
-
-        def tracking_policy(
-            rate: ProviderRate | RateEntry,
-            captured_at: datetime,
-            reason: AssemblyReason,
-        ) -> RateFreshnessMetadata:
-            nonlocal reused_previous
-            if reason is AssemblyReason.PREVIOUS_SNAPSHOT_REUSE:
-                reused_previous = True
-            return base_policy(rate, captured_at, reason)
-
-        service = SnapshotService(
-            self._providers,
-            clock=self._clock,
-            snapshot_id_factory=self._snapshot_id_factory,
-            freshness_policy=tracking_policy,
-        )
-        candidate = await service.assemble_snapshot(
-            explicit_fallback_rates=explicit_fallback_rates,
-            previous_snapshot=previous_snapshot,
-        )
-        return candidate, reused_previous
 
     def _freshness_policy(
         self,
