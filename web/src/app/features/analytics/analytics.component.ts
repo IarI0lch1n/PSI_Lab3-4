@@ -72,6 +72,10 @@ export class AnalyticsComponent implements OnInit {
     }
   }
 
+  protected label(value: string | undefined): string {
+    return value ? `${value.charAt(0).toUpperCase()}${value.slice(1).toLowerCase()}` : '';
+  }
+
   private loadCurrencies(): void {
     this.state.set({ status: 'loading' });
     this.api

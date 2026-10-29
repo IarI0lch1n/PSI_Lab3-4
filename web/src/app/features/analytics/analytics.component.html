@@ -67,7 +67,7 @@
         <span>Percentage change</span><strong>{{ viewState.analytics.percentage_change }}%</strong>
       </article>
       <article>
-        <span>Trend</span><strong>{{ viewState.analytics.trend | titlecase }}</strong>
+        <span>Trend</span><strong>{{ label(viewState.analytics.trend) }}</strong>
       </article>
     </section>
 
@@ -120,7 +120,7 @@
                 point.rate_context.source_rate.effective_at
               }}</time>
               <div class="badges">
-                <span>{{ point.rate_context.source_rate.freshness_state | titlecase }}</span>
+                <span>{{ label(point.rate_context.source_rate.freshness_state) }}</span>
                 @if (point.rate_context.source_rate.is_fallback) {
                   <span>Fallback used</span>
                 }
@@ -136,7 +136,7 @@
                 point.rate_context.target_rate.effective_at
               }}</time>
               <div class="badges">
-                <span>{{ point.rate_context.target_rate.freshness_state | titlecase }}</span>
+                <span>{{ label(point.rate_context.target_rate.freshness_state) }}</span>
                 @if (point.rate_context.target_rate.is_fallback) {
                   <span>Fallback used</span>
                 }
