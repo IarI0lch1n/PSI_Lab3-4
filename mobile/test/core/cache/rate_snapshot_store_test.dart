@@ -280,6 +280,98 @@ void main() {
       },
     );
 
+    test('preserves canonical freshness and provenance semantics through outage and restart', () async {
+      final snapshot = _createCrossClientSnapshot();
+      await store.save(snapshot);
+      final storedSnapshot = storage.value;
+
+      final persisted = jsonDecode(storedSnapshot!) as Map<String, dynamic>;
+      final persistedRates = {
+        for (final rate in persisted['rates'] as List<dynamic>)
+          (rate as Map<String, dynamic>)['currency'] as String: rate,
+      };
+      expect(persistedRates['MDL'], containsPair('freshness_state', 'live'));
+      expect(persistedRates['MDL'], containsPair('is_fallback', false));
+      expect(persistedRates['MDL'], containsPair('is_stale', false));
+      expect(
+        persistedRates['USD'],
+        containsPair('freshness_state', 'fallback'),
+      );
+      expect(persistedRates['USD'], containsPair('is_fallback', true));
+      expect(persistedRates['USD'], containsPair('is_stale', false));
+      expect(persistedRates['USD'], containsPair('provider_name', 'BNM'));
+      expect(
+        persistedRates['USD'],
+        containsPair('effective_at', '2026-10-30T09:00:00Z'),
+      );
+      expect(persistedRates['EUR'], containsPair('freshness_state', 'cached'));
+      expect(persistedRates['EUR'], containsPair('is_fallback', false));
+      expect(persistedRates['EUR'], containsPair('is_stale', false));
+      expect(persistedRates['BTC'], containsPair('freshness_state', 'cached'));
+      expect(persistedRates['BTC'], containsPair('is_fallback', false));
+      expect(persistedRates['BTC'], containsPair('is_stale', true));
+
+      storage.failWrites = true;
+      final replacement = _createSnapshot(
+        snapshotId: _replacementSnapshotId,
+        capturedAt: '2026-10-28T13:00:00Z',
+      );
+      await expectLater(store.save(replacement), throwsA(isA<StateError>()));
+      expect(storage.value, storedSnapshot);
+
+      final restartedStore = RateSnapshotStore(storage: storage);
+      final offline = await restartedStore.load(
+        now: DateTime.parse(snapshot.capturedAt),
+      );
+      final rates = {for (final rate in offline!.rates) rate.currency: rate};
+
+      expect(rates['MDL']!.freshnessState, FreshnessState.cached);
+      expect(rates['MDL']!.isFallback, isFalse);
+      expect(rates['MDL']!.isStale, isFalse);
+      expect(rates['MDL']!.providerName, 'BNM');
+      expect(rates['MDL']!.effectiveAt, '2026-10-28T09:00:00Z');
+      expect(rates['USD']!.freshnessState, FreshnessState.cached);
+      expect(rates['USD']!.isFallback, isTrue);
+      expect(rates['USD']!.isStale, isFalse);
+      expect(rates['USD']!.providerName, 'BNM');
+      expect(rates['USD']!.effectiveAt, '2026-10-30T09:00:00Z');
+      expect(rates['EUR']!.freshnessState, FreshnessState.cached);
+      expect(rates['EUR']!.isFallback, isFalse);
+      expect(rates['EUR']!.isStale, isFalse);
+      expect(rates['EUR']!.providerName, 'BNM');
+      expect(rates['EUR']!.effectiveAt, '2026-10-28T09:00:00Z');
+      expect(rates['BTC']!.freshnessState, FreshnessState.cached);
+      expect(rates['BTC']!.isFallback, isFalse);
+      expect(rates['BTC']!.isStale, isTrue);
+      expect(rates['BTC']!.providerName, 'CoinGecko');
+      expect(rates['BTC']!.effectiveAt, '2026-10-28T11:45:00Z');
+
+      final laterWeekday = await restartedStore.load(
+        now: DateTime.parse('2026-11-02T12:00:00Z'),
+      );
+      final weekdayEur = laterWeekday!.rates.singleWhere(
+        (rate) => rate.currency == 'EUR',
+      );
+      expect(weekdayEur.freshnessState, FreshnessState.cached);
+      expect(weekdayEur.isFallback, isFalse);
+      expect(weekdayEur.isStale, isTrue);
+      expect(weekdayEur.providerName, 'BNM');
+      expect(weekdayEur.effectiveAt, '2026-10-28T09:00:00Z');
+
+      final incomplete = RateSnapshot(
+        snapshotId: offline.snapshotId,
+        capturedAt: offline.capturedAt,
+        rates: offline.rates.where((rate) => rate.currency != 'BTC').toList(),
+      );
+      final pair = restartedStore.resolveRequiredRates(incomplete, [
+        'EUR',
+        'BTC',
+      ]);
+      expect(pair.isAvailable, isFalse);
+      expect(pair.unavailableCurrencies, ['BTC']);
+      expect(pair.rates, isEmpty);
+    });
+
     test(
       'keeps cached status independent from fallback and stale flags',
       () async {
@@ -479,6 +571,55 @@ RateSnapshot _createSnapshot({
     snapshotId: snapshotId,
     capturedAt: capturedAt,
     rates: entries,
+  );
+}
+
+RateSnapshot _createCrossClientSnapshot() {
+  final snapshot = _createSnapshot();
+  return RateSnapshot(
+    snapshotId: snapshot.snapshotId,
+    capturedAt: '2026-10-31T12:00:00Z',
+    rates: snapshot.rates
+        .map((rate) {
+          switch (rate.currency) {
+            case 'MDL':
+              return _copyRate(
+                rate,
+                freshnessState: FreshnessState.live,
+                isFallback: false,
+                isStale: false,
+              );
+            case 'USD':
+              return RateEntry(
+                currency: rate.currency,
+                normalizedRateToMdl: rate.normalizedRateToMdl,
+                nominalUnit: rate.nominalUnit,
+                providerName: rate.providerName,
+                providerType: rate.providerType,
+                effectiveAt: '2026-10-30T09:00:00Z',
+                freshnessState: FreshnessState.fallback,
+                isFallback: true,
+                isStale: false,
+              );
+            case 'EUR':
+              return _copyRate(
+                rate,
+                freshnessState: FreshnessState.cached,
+                isFallback: false,
+                isStale: false,
+              );
+            case 'BTC':
+              return _copyRate(
+                rate,
+                freshnessState: FreshnessState.cached,
+                isFallback: false,
+                isStale: true,
+              );
+            default:
+              return rate;
+          }
+        })
+        .toList(growable: false),
   );
 }
 

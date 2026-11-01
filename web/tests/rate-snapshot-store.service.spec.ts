@@ -194,6 +194,98 @@ describe('RateSnapshotStoreService', () => {
     });
   });
 
+  it('preserves canonical freshness and provenance semantics through outage and restart', () => {
+    const snapshot = createCrossClientSnapshot();
+    service.save(snapshot);
+
+    const persisted = JSON.parse(storage.read(STORAGE_KEY) ?? 'null') as RateSnapshot;
+    expect(persisted.rates.find((rate) => rate.currency === 'MDL')).toMatchObject({
+      freshness_state: 'live',
+      is_fallback: false,
+      is_stale: false,
+    });
+    expect(persisted.rates.find((rate) => rate.currency === 'USD')).toMatchObject({
+      freshness_state: 'fallback',
+      is_fallback: true,
+      is_stale: false,
+      provider_name: 'BNM',
+      effective_at: '2026-10-30T09:00:00Z',
+    });
+    expect(persisted.rates.find((rate) => rate.currency === 'EUR')).toMatchObject({
+      freshness_state: 'cached',
+      is_fallback: false,
+      is_stale: false,
+    });
+    expect(persisted.rates.find((rate) => rate.currency === 'BTC')).toMatchObject({
+      freshness_state: 'cached',
+      is_fallback: false,
+      is_stale: true,
+    });
+
+    storage.setItem.mockImplementationOnce(() => {
+      throw new Error('Simulated refresh outage.');
+    });
+    expect(() => service.save(createSnapshot('00000000-0000-4000-8000-000000000057'))).toThrow(
+      'Simulated refresh outage.',
+    );
+    expect(storage.read(STORAGE_KEY)).toBe(JSON.stringify(snapshot));
+
+    const restartedService = TestBed.runInInjectionContext(() => new RateSnapshotStoreService());
+    const offline = restartedService.load(new Date(snapshot.captured_at));
+    const rates = new Map(offline?.rates.map((rate) => [rate.currency, rate]));
+
+    expect(rates.get('MDL')).toMatchObject({
+      freshness_state: 'cached',
+      is_fallback: false,
+      is_stale: false,
+      provider_name: 'BNM',
+      effective_at: '2026-10-28T09:00:00Z',
+    });
+    expect(rates.get('USD')).toMatchObject({
+      freshness_state: 'cached',
+      is_fallback: true,
+      is_stale: false,
+      provider_name: 'BNM',
+      effective_at: '2026-10-30T09:00:00Z',
+    });
+    expect(rates.get('EUR')).toMatchObject({
+      freshness_state: 'cached',
+      is_fallback: false,
+      is_stale: false,
+      provider_name: 'BNM',
+      effective_at: '2026-10-28T09:00:00Z',
+    });
+    expect(rates.get('BTC')).toMatchObject({
+      freshness_state: 'cached',
+      is_fallback: false,
+      is_stale: true,
+      provider_name: 'CoinGecko',
+      effective_at: '2026-10-28T11:45:00Z',
+    });
+
+    const laterWeekday = restartedService.load(new Date('2026-11-02T12:00:00Z'));
+    const weekdayRates = new Map(laterWeekday?.rates.map((rate) => [rate.currency, rate]));
+    expect(weekdayRates.get('EUR')).toMatchObject({
+      freshness_state: 'cached',
+      is_fallback: false,
+      is_stale: true,
+      provider_name: 'BNM',
+      effective_at: '2026-10-28T09:00:00Z',
+    });
+
+    const incomplete = {
+      ...offline!,
+      rates: offline!.rates.filter((rate) => rate.currency !== 'BTC'),
+    };
+    const pair = restartedService.resolveRequiredRates(incomplete, ['EUR', 'BTC']);
+    expect(pair).toEqual({
+      status: 'unavailable',
+      unavailableCurrencies: ['BTC'],
+      message: 'Required currency rates are unavailable: BTC.',
+    });
+    expect('rates' in pair).toBe(false);
+  });
+
   it('recalculates crypto staleness at and just beyond the 15-minute boundary', () => {
     const snapshot = createSnapshot();
     service.save(snapshot);
@@ -282,5 +374,48 @@ function createSnapshot(snapshotId = SNAPSHOT_ID): RateSnapshot {
     snapshot_id: snapshotId,
     captured_at: '2026-10-28T12:00:00Z',
     rates,
+  };
+}
+
+function createCrossClientSnapshot(): RateSnapshot {
+  const snapshot = createSnapshot();
+  return {
+    ...snapshot,
+    captured_at: '2026-10-31T12:00:00Z',
+    rates: snapshot.rates.map((rate) => {
+      switch (rate.currency) {
+        case 'MDL':
+          return {
+            ...rate,
+            freshness_state: 'live' as const,
+            is_fallback: false,
+            is_stale: false,
+          };
+        case 'USD':
+          return {
+            ...rate,
+            effective_at: '2026-10-30T09:00:00Z',
+            freshness_state: 'fallback' as const,
+            is_fallback: true,
+            is_stale: false,
+          };
+        case 'EUR':
+          return {
+            ...rate,
+            freshness_state: 'cached' as const,
+            is_fallback: false,
+            is_stale: false,
+          };
+        case 'BTC':
+          return {
+            ...rate,
+            freshness_state: 'cached' as const,
+            is_fallback: false,
+            is_stale: true,
+          };
+        default:
+          return rate;
+      }
+    }),
   };
 }
