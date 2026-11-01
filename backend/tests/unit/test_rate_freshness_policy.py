@@ -224,4 +224,3 @@ async def test_unusable_previous_snapshot_cannot_supply_missing_entries(
             _MONDAY,
             crypto_error=True,
         ).assemble_candidate(previous_snapshot=previous)
-
