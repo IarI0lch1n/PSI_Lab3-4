@@ -11,6 +11,7 @@ from app.application.services.analytics_service import AnalyticsService
 from app.application.use_cases.convert_currency import ConvertCurrency
 from app.application.use_cases.get_latest_snapshot import GetLatestSnapshot
 from app.application.use_cases.list_currencies import ListCurrencies
+from app.application.use_cases.refresh_rates import RefreshRates
 from app.core.config.settings import Settings, get_settings
 from app.domain.interfaces.rate_provider import RateProvider
 from app.domain.interfaces.unit_of_work import UnitOfWork
@@ -92,3 +93,15 @@ def get_snapshot_service(
 ) -> SnapshotService:
     """Construct an in-memory snapshot assembler without fetching or persisting."""
     return SnapshotService(providers)
+
+
+def get_refresh_rates_use_case(
+    providers: Sequence[RateProvider] = Depends(get_rate_providers),
+    settings: Settings = Depends(get_app_settings),
+) -> RefreshRates:
+    """Construct atomic refresh orchestration with request-independent resources."""
+
+    return RefreshRates(
+        providers,
+        unit_of_work=_create_unit_of_work(settings),
+    )

@@ -5,11 +5,14 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import (
     get_latest_snapshot_use_case,
     get_list_currencies_use_case,
+    get_refresh_rates_use_case,
 )
 from app.api.schemas.currency import CurrenciesResponse
+from app.api.schemas.refresh import RefreshResponse
 from app.api.schemas.rates import RateSnapshotResponse
 from app.application.use_cases.get_latest_snapshot import GetLatestSnapshot
 from app.application.use_cases.list_currencies import ListCurrencies
+from app.application.use_cases.refresh_rates import RefreshRates
 
 router = APIRouter()
 
@@ -28,3 +31,12 @@ def get_latest_rates(
 ) -> RateSnapshotResponse:
     """Return the latest complete usable snapshot."""
     return RateSnapshotResponse.from_domain(use_case.execute())
+
+
+@router.post("/rates/refresh", response_model=RefreshResponse)
+async def refresh_rates(
+    use_case: RefreshRates = Depends(get_refresh_rates_use_case),
+) -> RefreshResponse:
+    """Refresh and atomically activate one complete validated snapshot."""
+
+    return RefreshResponse.from_result(await use_case.execute())
