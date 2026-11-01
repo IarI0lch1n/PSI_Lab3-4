@@ -266,3 +266,32 @@ T064 outcome: **PASS** for FR-003, FR-013, FR-014, FR-019–FR-025 and
 SC-005–SC-009, SC-012–SC-018. SC-010 remains a human usability gate under
 T065; the Android interactive timing for SC-001 remains unverified under
 T063.
+
+### T065 participant packet (prepared; review pending)
+
+Use one participant unfamiliar with currency data. Present each example
+separately, without explaining the labels or correcting answers. Say only:
+"For each example, tell me who provided each rate and what the freshness
+status of each rate means. It is fine to say you are unsure." Record their
+answers verbatim before scoring.
+
+| # | Scenario | First rate context shown | Second rate context shown |
+|---|---|---|---|
+| 1 | Classic conversion, EUR to BTC | EUR — Provider: BNM — Freshness: Live | BTC — Provider: CoinGecko — Freshness: Cached; Stale |
+| 2 | Classic conversion, RON to BTC | RON — Provider: BNM — Freshness: Fallback; Fallback used | BTC — Provider: CoinGecko — Freshness: Cached; Stale |
+| 3 | 7-day analytics point, CHF to ETH | CHF — Provider: BNM — Freshness: Cached; Stale | ETH — Provider: CoinGecko — Freshness: Live |
+| 4 | 30-day analytics point, GBP to DOGE | GBP — Provider: BNM — Freshness: Fallback; Fallback used | DOGE — Provider: CoinGecko — Freshness: Live |
+| 5 | Classic conversion, USD to USDT | USD — Provider: BNM — Freshness: Cached; Stale | USDT — Provider: CoinGecko — Freshness: Cached; Stale |
+
+| # | First provider/status interpretation | Second provider/status interpretation | All four correct? |
+|---|---|---|---|
+| 1 | Pending | Pending | Pending |
+| 2 | Pending | Pending | Pending |
+| 3 | Pending | Pending | Pending |
+| 4 | Pending | Pending | Pending |
+| 5 | Pending | Pending | Pending |
+
+T065/SC-010 outcome: **PENDING HUMAN REVIEW**. A scenario counts only when
+both providers and both freshness interpretations are correct; SC-010 passes
+at 4 of 5 or more. Do not treat this prepared packet or automated tests as a
+completed usability review.
