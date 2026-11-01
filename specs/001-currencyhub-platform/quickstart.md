@@ -165,6 +165,29 @@ available before treating the returned rates as demonstration data.
 The backend, Angular, and Flutter test suites cover these behaviors with fake
 or mocked data and do not call live providers.
 
+## Environment and security checks
+
+The checked-in `backend\.env.example` contains a local SQL Server connection
+template and explicitly named placeholder DB/provider credentials; it does
+not contain real DB credentials or provider keys. `backend\.env` and other
+`.env` files are ignored, with only `.env.example` allowed into version
+control. The tracked Angular and Flutter source scan found no database
+credentials or provider secrets. A tracked-text credential-pattern scan
+matched only configuration placeholders, provider configuration references,
+and test fixtures; no real secret was identified.
+
+The backend's default CORS allowlist is limited to the local Angular origins
+`http://localhost:4200` and `http://127.0.0.1:4200`; it does not use a wildcard
+and does not allow browser credentials. The app allows only `GET` and `POST`
+with `Accept` and `Content-Type` headers. Flutter's native HTTP client does
+not rely on CORS. Keep any custom local origins narrowly scoped.
+
+The configured product scope remains informational: the API route set covers
+currencies, rates, conversion, history, analytics, health, and refresh. It
+does not add accounts, authentication, transfers, wallets, portfolios, or
+financial transaction processing, as required by FR-026. These notes follow
+the configuration boundaries in the project specification and constitution.
+
 ## Requirement mapping and acceptance record
 
 - **FR-001**: The app's current-rates entry points require no sign-in; use
