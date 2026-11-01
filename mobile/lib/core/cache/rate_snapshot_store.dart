@@ -28,12 +28,36 @@ class SharedPreferencesRateSnapshotStorage implements RateSnapshotStorage {
 }
 
 class RateSnapshotCacheException implements Exception {
-  const RateSnapshotCacheException(this.message);
+  const RateSnapshotCacheException(
+    this.message, {
+    this.unavailableCurrencies = const [],
+  });
 
   final String message;
+  final List<String> unavailableCurrencies;
 
   @override
   String toString() => 'RateSnapshotCacheException: $message';
+}
+
+class RequiredRateResolution {
+  RequiredRateResolution.available(List<RateEntry> rates)
+    : isAvailable = true,
+      rates = List.unmodifiable(rates),
+      unavailableCurrencies = const [],
+      message = null;
+
+  RequiredRateResolution.unavailable(List<String> currencies)
+    : isAvailable = false,
+      rates = const [],
+      unavailableCurrencies = List.unmodifiable(currencies),
+      message =
+          'Required currency rates are unavailable: ${currencies.join(', ')}.';
+
+  final bool isAvailable;
+  final List<RateEntry> rates;
+  final List<String> unavailableCurrencies;
+  final String? message;
 }
 
 class RateSnapshotStore {
@@ -66,6 +90,33 @@ class RateSnapshotStore {
 
   final RateSnapshotStorage _storage;
 
+  RequiredRateResolution resolveRequiredRates(
+    RateSnapshot? snapshot,
+    List<String> requiredCurrencies,
+  ) {
+    final ratesByCurrency = <String, List<RateEntry>>{};
+    for (final rate in snapshot?.rates ?? const <RateEntry>[]) {
+      ratesByCurrency.putIfAbsent(rate.currency, () => []).add(rate);
+    }
+
+    final rates = <RateEntry>[];
+    final unavailableCurrencies = <String>[];
+    for (final currency in requiredCurrencies.toSet()) {
+      final entries = ratesByCurrency[currency];
+      if (entries == null ||
+          entries.length != 1 ||
+          !_isUsableRateJson(_rateToJson(entries.single))) {
+        unavailableCurrencies.add(currency);
+      } else {
+        rates.add(entries.single);
+      }
+    }
+
+    return unavailableCurrencies.isEmpty
+        ? RequiredRateResolution.available(rates)
+        : RequiredRateResolution.unavailable(unavailableCurrencies);
+  }
+
   Future<RateSnapshot?> load({DateTime? now}) async {
     final currentTime = (now ?? DateTime.now()).toUtc();
     final serialized = await _storage.read(storageKey);
@@ -77,13 +128,20 @@ class RateSnapshotStore {
     try {
       decoded = jsonDecode(serialized);
     } on FormatException {
-      throw const RateSnapshotCacheException(
-        'The stored rate snapshot is unreadable.',
+      final unavailableCurrencies = _currencyTypes.keys.toList(growable: false);
+      throw RateSnapshotCacheException(
+        'The stored rate snapshot is unreadable. Unavailable required currencies: ${unavailableCurrencies.join(', ')}.',
+        unavailableCurrencies: unavailableCurrencies,
       );
     }
     if (decoded is! Map<String, dynamic> || !_isUsableSnapshotJson(decoded)) {
-      throw const RateSnapshotCacheException(
-        'The stored rate snapshot is invalid or incomplete.',
+      final unavailableCurrencies = _findUnavailableCurrencies(decoded);
+      final detail = unavailableCurrencies.isEmpty
+          ? ''
+          : ' Unavailable required currencies: ${unavailableCurrencies.join(', ')}.';
+      throw RateSnapshotCacheException(
+        'The stored rate snapshot is invalid or incomplete.$detail',
+        unavailableCurrencies: unavailableCurrencies,
       );
     }
 
@@ -149,22 +207,44 @@ class RateSnapshotStore {
   Map<String, Object?> _snapshotToJson(RateSnapshot snapshot) => {
     'snapshot_id': snapshot.snapshotId,
     'captured_at': snapshot.capturedAt,
-    'rates': snapshot.rates
-        .map(
-          (rate) => {
-            'currency': rate.currency,
-            'normalized_rate_to_mdl': rate.normalizedRateToMdl,
-            'nominal_unit': rate.nominalUnit,
-            'provider_name': rate.providerName,
-            'provider_type': rate.providerType.name,
-            'effective_at': rate.effectiveAt,
-            'freshness_state': rate.freshnessState.name,
-            'is_fallback': rate.isFallback,
-            'is_stale': rate.isStale,
-          },
-        )
-        .toList(growable: false),
+    'rates': snapshot.rates.map(_rateToJson).toList(growable: false),
   };
+
+  Map<String, dynamic> _rateToJson(RateEntry rate) => {
+    'currency': rate.currency,
+    'normalized_rate_to_mdl': rate.normalizedRateToMdl,
+    'nominal_unit': rate.nominalUnit,
+    'provider_name': rate.providerName,
+    'provider_type': rate.providerType.name,
+    'effective_at': rate.effectiveAt,
+    'freshness_state': rate.freshnessState.name,
+    'is_fallback': rate.isFallback,
+    'is_stale': rate.isStale,
+  };
+
+  List<String> _findUnavailableCurrencies(Object? value) {
+    final rates =
+        value is Map<String, dynamic> && value['rates'] is List<dynamic>
+        ? value['rates'] as List<dynamic>
+        : const <dynamic>[];
+    final entriesByCurrency = <String, List<dynamic>>{};
+    for (final rate in rates) {
+      if (rate is Map<String, dynamic> && rate['currency'] is String) {
+        entriesByCurrency
+            .putIfAbsent(rate['currency'] as String, () => [])
+            .add(rate);
+      }
+    }
+    return _currencyTypes.keys
+        .where((currency) {
+          final entries = entriesByCurrency[currency];
+          return entries == null ||
+              entries.length != 1 ||
+              entries.single is! Map<String, dynamic> ||
+              !_isUsableRateJson(entries.single as Map<String, dynamic>);
+        })
+        .toList(growable: false);
+  }
 
   bool _isUsableSnapshotJson(Map<String, dynamic> json) {
     final snapshotId = json['snapshot_id'];

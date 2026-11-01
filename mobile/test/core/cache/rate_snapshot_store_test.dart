@@ -81,10 +81,42 @@ void main() {
           throwsA(isA<RateSnapshotCacheException>()),
         );
 
-        storage.value = jsonEncode({'snapshot_id': _snapshotId});
+        final incomplete = _createSnapshot();
+        storage.value = jsonEncode({
+          'snapshot_id': incomplete.snapshotId,
+          'captured_at': incomplete.capturedAt,
+          'rates': incomplete.rates
+              .skip(1)
+              .map(
+                (rate) => {
+                  'currency': rate.currency,
+                  'normalized_rate_to_mdl': rate.normalizedRateToMdl,
+                  'nominal_unit': rate.nominalUnit,
+                  'provider_name': rate.providerName,
+                  'provider_type': rate.providerType.name,
+                  'effective_at': rate.effectiveAt,
+                  'freshness_state': rate.freshnessState.name,
+                  'is_fallback': rate.isFallback,
+                  'is_stale': rate.isStale,
+                },
+              )
+              .toList(),
+        });
         await expectLater(
           store.load(),
-          throwsA(isA<RateSnapshotCacheException>()),
+          throwsA(
+            isA<RateSnapshotCacheException>()
+                .having(
+                  (error) => error.unavailableCurrencies,
+                  'unavailable currencies',
+                  ['MDL'],
+                )
+                .having(
+                  (error) => error.message,
+                  'message',
+                  contains('Unavailable required currencies: MDL.'),
+                ),
+          ),
         );
       },
     );
@@ -192,6 +224,59 @@ void main() {
         expect(fallbackRate.isFallback, isTrue);
         expect(fallbackRate.isStale, isFalse);
         expect(storage.value, serializedBeforeLoad);
+      },
+    );
+
+    test('resolves cached required rates with original provider and effective time', () async {
+      final snapshot = _createSnapshot();
+      await store.save(snapshot);
+      final cached = await store.load(now: DateTime.parse(_capturedAt));
+
+      final resolution = store.resolveRequiredRates(cached, ['BTC', 'EUR']);
+
+      expect(resolution.isAvailable, isTrue);
+      expect(resolution.rates.map((rate) => rate.currency), ['BTC', 'EUR']);
+      expect(resolution.rates[0].providerName, 'CoinGecko');
+      expect(resolution.rates[0].effectiveAt, '2026-10-28T11:45:00Z');
+      expect(resolution.rates[0].freshnessState, FreshnessState.cached);
+      expect(resolution.rates[0].isFallback, isFalse);
+      expect(resolution.rates[1].providerName, 'BNM');
+      expect(resolution.rates[1].effectiveAt, '2026-10-28T09:00:00Z');
+      expect(resolution.rates[1].freshnessState, FreshnessState.cached);
+      expect(resolution.rates[1].isFallback, isFalse);
+    });
+
+    test('identifies unavailable required currencies without exposing a partial pair', () {
+      final snapshot = _createSnapshot();
+      final partial = RateSnapshot(
+        snapshotId: snapshot.snapshotId,
+        capturedAt: snapshot.capturedAt,
+        rates: snapshot.rates.where((rate) => rate.currency != 'BTC').toList(),
+      );
+
+      final resolution = store.resolveRequiredRates(partial, ['EUR', 'BTC']);
+
+      expect(resolution.isAvailable, isFalse);
+      expect(resolution.rates, isEmpty);
+      expect(resolution.unavailableCurrencies, ['BTC']);
+      expect(
+        resolution.message,
+        'Required currency rates are unavailable: BTC.',
+      );
+    });
+
+    test(
+      'reports required currencies unavailable when there is no snapshot',
+      () {
+        final resolution = store.resolveRequiredRates(null, ['EUR', 'BTC']);
+
+        expect(resolution.isAvailable, isFalse);
+        expect(resolution.rates, isEmpty);
+        expect(resolution.unavailableCurrencies, ['EUR', 'BTC']);
+        expect(
+          resolution.message,
+          'Required currency rates are unavailable: EUR, BTC.',
+        );
       },
     );
 

@@ -21,11 +21,22 @@ export const RATE_SNAPSHOT_STORAGE = new InjectionToken<RateSnapshotStorage>(
 );
 
 export class RateSnapshotStoreError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly unavailableCurrencies: readonly string[] = [],
+  ) {
     super(message);
     this.name = 'RateSnapshotStoreError';
   }
 }
+
+export type RequiredRateResolution =
+  | { readonly status: 'available'; readonly rates: readonly RateEntry[] }
+  | {
+      readonly status: 'unavailable';
+      readonly unavailableCurrencies: readonly string[];
+      readonly message: string;
+    };
 
 const STORAGE_KEY = 'currencyhub:last-successful-rate-snapshot:v1';
 const CRYPTO_CURRENT_WINDOW_MS = 15 * 60 * 1000;
@@ -57,6 +68,39 @@ const POSITIVE_DECIMAL_PATTERN = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 export class RateSnapshotStoreService {
   private readonly storage = inject(RATE_SNAPSHOT_STORAGE);
 
+  resolveRequiredRates(
+    snapshot: RateSnapshot | null,
+    requiredCurrencies: readonly string[],
+  ): RequiredRateResolution {
+    const required = [...new Set(requiredCurrencies)];
+    const ratesByCurrency = new Map<string, RateEntry[]>();
+    for (const rate of snapshot?.rates ?? []) {
+      const entries = ratesByCurrency.get(rate.currency) ?? [];
+      entries.push(rate);
+      ratesByCurrency.set(rate.currency, entries);
+    }
+
+    const rates: RateEntry[] = [];
+    const unavailableCurrencies: string[] = [];
+    for (const currency of required) {
+      const entries = ratesByCurrency.get(currency);
+      if (!entries || entries.length !== 1 || !isRateEntry(entries[0])) {
+        unavailableCurrencies.push(currency);
+      } else {
+        rates.push(entries[0]);
+      }
+    }
+
+    if (unavailableCurrencies.length > 0) {
+      return {
+        status: 'unavailable',
+        unavailableCurrencies,
+        message: `Required currency rates are unavailable: ${unavailableCurrencies.join(', ')}.`,
+      };
+    }
+    return { status: 'available', rates };
+  }
+
   load(now = new Date()): RateSnapshot | null {
     if (!Number.isFinite(now.getTime())) {
       throw new RangeError('The snapshot rehydration time must be valid.');
@@ -71,10 +115,22 @@ export class RateSnapshotStoreService {
     try {
       decoded = JSON.parse(serialized);
     } catch {
-      throw new RateSnapshotStoreError('The stored rate snapshot is unreadable.');
+      const unavailableCurrencies = Object.keys(CURRENCY_TYPES);
+      throw new RateSnapshotStoreError(
+        `The stored rate snapshot is unreadable. Unavailable required currencies: ${unavailableCurrencies.join(', ')}.`,
+        unavailableCurrencies,
+      );
     }
     if (!isRateSnapshot(decoded)) {
-      throw new RateSnapshotStoreError('The stored rate snapshot is invalid or incomplete.');
+      const unavailableCurrencies = findUnavailableCurrencies(decoded);
+      const detail =
+        unavailableCurrencies.length > 0
+          ? ` Unavailable required currencies: ${unavailableCurrencies.join(', ')}.`
+          : '';
+      throw new RateSnapshotStoreError(
+        `The stored rate snapshot is invalid or incomplete.${detail}`,
+        unavailableCurrencies,
+      );
     }
 
     return rehydrateAsCached(decoded, now);
@@ -151,6 +207,22 @@ function isRateEntry(value: unknown): value is RateEntry {
     typeof isFallback === 'boolean' &&
     typeof isStale === 'boolean'
   );
+}
+
+function findUnavailableCurrencies(value: unknown): string[] {
+  const rates = isRecord(value) && Array.isArray(value['rates']) ? value['rates'] : [];
+  const entriesByCurrency = new Map<string, unknown[]>();
+  for (const rate of rates) {
+    if (isRecord(rate) && typeof rate['currency'] === 'string') {
+      const entries = entriesByCurrency.get(rate['currency']) ?? [];
+      entries.push(rate);
+      entriesByCurrency.set(rate['currency'], entries);
+    }
+  }
+  return Object.keys(CURRENCY_TYPES).filter((currency) => {
+    const entries = entriesByCurrency.get(currency);
+    return !entries || entries.length !== 1 || !isRateEntry(entries[0]);
+  });
 }
 
 function isFreshnessState(value: unknown): value is FreshnessState {

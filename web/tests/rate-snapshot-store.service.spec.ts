@@ -65,8 +65,16 @@ describe('RateSnapshotStoreService', () => {
     storage.values.set(STORAGE_KEY, '{not json');
     expect(() => service.load()).toThrow(RateSnapshotStoreError);
 
-    storage.values.set(STORAGE_KEY, JSON.stringify({ snapshot_id: SNAPSHOT_ID }));
-    expect(() => service.load()).toThrow(RateSnapshotStoreError);
+    const incomplete = { ...createSnapshot(), rates: createSnapshot().rates.slice(1) };
+    storage.values.set(STORAGE_KEY, JSON.stringify(incomplete));
+    try {
+      service.load();
+      throw new Error('Expected the incomplete cache to be rejected.');
+    } catch (error) {
+      expect(error).toBeInstanceOf(RateSnapshotStoreError);
+      expect((error as RateSnapshotStoreError).unavailableCurrencies).toEqual(['MDL']);
+      expect((error as Error).message).toContain('Unavailable required currencies: MDL.');
+    }
   });
 
   it.each([
@@ -133,6 +141,57 @@ describe('RateSnapshotStoreService', () => {
     expect(rehydrated?.rates[1].is_fallback).toBe(true);
     expect(rehydrated?.rates[1].is_stale).toBe(false);
     expect(storage.read(STORAGE_KEY)).toBe(JSON.stringify(snapshot));
+  });
+
+  it('resolves cached required rates with original provider and effective time', () => {
+    const snapshot = createSnapshot();
+    service.save(snapshot);
+
+    const cached = service.load(new Date(snapshot.captured_at));
+    const resolution = service.resolveRequiredRates(cached, ['BTC', 'EUR']);
+
+    expect(resolution.status).toBe('available');
+    if (resolution.status !== 'available') {
+      throw new Error('Expected all required rates to be available.');
+    }
+    expect(resolution.rates.map((rate) => rate.currency)).toEqual(['BTC', 'EUR']);
+    expect(resolution.rates[0]).toMatchObject({
+      provider_name: 'CoinGecko',
+      effective_at: '2026-10-28T11:45:00Z',
+      freshness_state: 'cached',
+      is_fallback: false,
+    });
+    expect(resolution.rates[1]).toMatchObject({
+      provider_name: 'BNM',
+      effective_at: '2026-10-28T09:00:00Z',
+      freshness_state: 'cached',
+      is_fallback: false,
+    });
+  });
+
+  it('identifies unavailable required currencies without exposing a partial pair', () => {
+    const snapshot = createSnapshot();
+    const partial = {
+      ...snapshot,
+      rates: snapshot.rates.filter((rate) => rate.currency !== 'BTC'),
+    };
+
+    const resolution = service.resolveRequiredRates(partial, ['EUR', 'BTC']);
+
+    expect(resolution).toEqual({
+      status: 'unavailable',
+      unavailableCurrencies: ['BTC'],
+      message: 'Required currency rates are unavailable: BTC.',
+    });
+    expect('rates' in resolution).toBe(false);
+  });
+
+  it('reports all required currencies unavailable when no cached snapshot exists', () => {
+    expect(service.resolveRequiredRates(null, ['EUR', 'BTC'])).toEqual({
+      status: 'unavailable',
+      unavailableCurrencies: ['EUR', 'BTC'],
+      message: 'Required currency rates are unavailable: EUR, BTC.',
+    });
   });
 
   it('recalculates crypto staleness at and just beyond the 15-minute boundary', () => {
