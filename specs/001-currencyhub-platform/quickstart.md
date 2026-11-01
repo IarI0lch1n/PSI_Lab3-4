@@ -205,8 +205,64 @@ the configuration boundaries in the project specification and constitution.
 
 ### SC-001 interactive timing record
 
-- Web measurement/result: **MANUAL REQUIRED** (not measured in this record).
-- Flutter measurement/result: **MANUAL REQUIRED** (not measured in this record).
-- Method: start a stopwatch when the converter screen is ready for input; stop
-  only after both the result and both rate contexts are visible. Record each
-  platform's elapsed time and pass only if it is under 30 seconds.
+- Web: **PASS — 0.20 seconds** in one browser-assisted run against a local
+  mock API. Timing began when the Amount field was ready, included entering
+  `25`, selecting USD to BTC, and submitting; it stopped after the result,
+  both providers, and both original effective timestamps were visible.
+- Flutter Android: **NOT RUN**. The configured emulator was available, but
+  `flutter run` required installing Android SDK Platform 35. The command was
+  stopped before installation because acceptance validation must not install
+  packages. Flutter widget tests are not a substitute for this interactive
+  timing.
+- SC-001 overall: **NOT YET VERIFIED** until a Flutter Android timing is
+  recorded. Start timing when the converter screen is ready for input; stop
+  only after the result and both rate contexts are visible. Pass only if each
+  platform completes in under 30 seconds.
+
+### T063 automated scenario and requirement record
+
+The complete deterministic suites passed: backend **395 passed** (one
+Starlette deprecation warning), Angular **88 passed** in 8 files and production
+build succeeded, and Flutter **84 passed**, analysis reported no issues, and
+formatting reported 18 files with no changes. Backend tests have an autouse
+HTTPX guard that rejects requests to BNM and CoinGecko domains; backend
+provider tests use `MockTransport` or fake providers. Web and Flutter widget
+tests use mocked API clients.
+
+| Requirements | Outcome and evidence |
+|---|---|
+| FR-003–FR-006 | Automated pass: conversion, invalid-input validation, same-currency handling, provenance, and unavailable-rate tests passed in backend and both clients. |
+| FR-007–FR-010 | Automated pass: all-currency calculations, per-entry provenance, and snapshot/effective-time distinctions passed in both clients. |
+| FR-011–FR-014 | Automated pass: refresh, 7/30-day analytics, pair provenance, and incomplete-point handling passed in backend and client suites. |
+| FR-015–FR-018 | Automated pass: outage/cache reuse, persistence and rehydration, unusable-cache handling, and unavailable states passed in both clients. |
+| FR-019–FR-021 | Automated pass: BNM fallback, source-aware staleness, and atomic replacement/preservation passed in backend and client suites. |
+| FR-022 | Automated pass: equivalent client contract and freshness-semantic tests passed. |
+| FR-023 | Automated pass: Flutter phone-sized widget usability tests passed; interactive emulator acceptance remains unmeasured. |
+| FR-024–FR-025 | Automated pass: client tests for plain-language freshness, provenance, and unavailable/error messages passed. |
+| SC-002–SC-004 | Automated pass: conversion consistency, invalid input, and same-currency result tests passed. |
+| SC-005–SC-006 | Automated pass: per-leg provenance and independent cached/fallback/stale rendering tests passed. |
+| SC-007 | Automated pass: 7/30-day analytics, mixed provenance, and empty-state tests passed. |
+| SC-008–SC-009 | Automated pass: outage/restart cache tests and distinct snapshot/effective-time/freshness tests passed. |
+| SC-010 | **NOT RUN**: requires an unfamiliar human participant; tracked under T065. |
+| SC-011–SC-012 | Automated pass: unavailable required-rate and cross-client semantic tests passed. |
+| SC-013–SC-015 | Automated pass: BNM fallback/publication-day and cryptocurrency 15-minute boundary tests passed. |
+| SC-016–SC-018 | Automated pass: cache usability, complete-snapshot replacement, and restart persistence tests passed. |
+
+T063 remains incomplete until the Flutter interactive timing is recorded.
+
+### T064 API contract verification
+
+The published latest-rates entries, both conversion legs, and both legs of
+each history point expose `freshness_state`, `is_fallback`, and `is_stale`
+while preserving provider and effective time. Analytics and refresh
+freshness summaries report primary live/fallback/cached counts separately
+from stale and fallback-used counts. The backend schema and contract tests
+confirm these shapes; **34 focused backend contract/integration tests
+passed** (one existing Starlette deprecation warning). The verified
+endpoints, schema names, and test files are recorded in
+[`contracts/rates-api.md`](./contracts/rates-api.md).
+
+T064 outcome: **PASS** for FR-003, FR-013, FR-014, FR-019–FR-025 and
+SC-005–SC-009, SC-012–SC-018. SC-010 remains a human usability gate under
+T065; the Android interactive timing for SC-001 remains unverified under
+T063.
