@@ -33,7 +33,7 @@ class BootstrapHistoryError(ValueError):
 
 
 class BootstrapHistory:
-    """Persist up to 30 complete historical daily snapshots on first run."""
+    """Incrementally persist up to 30 complete historical daily snapshots."""
 
     def __init__(
         self,
@@ -49,7 +49,7 @@ class BootstrapHistory:
         self._snapshot_id_factory = snapshot_id_factory or uuid4
 
     async def execute(self) -> tuple[RateSnapshot, ...]:
-        """Bootstrap once, returning the snapshots persisted by this call."""
+        """Persist missing daily snapshots and return those added by this call."""
         end_at = self._aware_utc_now()
         end_date = end_at.astimezone(_MOLDOVA_TIMEZONE).date()
         start_date = end_date - timedelta(days=29)
@@ -64,14 +64,21 @@ class BootstrapHistory:
                 start_at,
                 end_at,
             )
-            if existing:
-                return ()
+            existing_dates = {
+                snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).date()
+                for snapshot in existing
+            }
 
             provider_rates = await self._fetch_history(start_at, end_at)
-            snapshots = self._build_snapshots(
-                provider_rates,
-                start_date,
-                end_date,
+            snapshots = tuple(
+                snapshot
+                for snapshot in self._build_snapshots(
+                    provider_rates,
+                    start_date,
+                    end_date,
+                )
+                if snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).date()
+                not in existing_dates
             )
             for snapshot in snapshots:
                 uow.rate_repository.save_complete_snapshot(snapshot)

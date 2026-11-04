@@ -146,7 +146,8 @@ available before treating the returned rates as demonstration data.
 5. **All-currencies comparison**: Enter an amount and change the input
    currency; verify all visible values use one complete snapshot.
 6. **Analytics**: Review 7-day and 30-day pair summaries and point context;
-   verify empty history has an explicit empty state.
+   verify empty history has an explicit empty state. Historical bootstrap
+   adds missing daily snapshots on rerun without replacing existing dates.
 7. **Offline/cache**: Persist a complete snapshot, simulate a provider/network
    failure, and verify cached entries retain their original provider/effective
    time and are not mislabeled as fallback.
