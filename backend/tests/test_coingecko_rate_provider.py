@@ -1,7 +1,7 @@
 """Tests for CoinGecko current-rate fetching and normalization."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -80,6 +80,7 @@ def _provider(
     *,
     api_key: str = "placeholder_coingecko_api_key",
     retries: int = 0,
+    sleep: Callable[[float], Awaitable[None]] | None = None,
 ) -> tuple[CoinGeckoRateProvider, httpx.AsyncClient]:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     settings = Settings(
@@ -88,7 +89,22 @@ def _provider(
         coingecko_timeout_seconds=1,
         coingecko_max_retries=retries,
     )
-    return CoinGeckoRateProvider(client=client, settings=settings), client
+    return (
+        CoinGeckoRateProvider(client=client, settings=settings, sleep=sleep),
+        client,
+    )
+
+
+def _historical_success_response(
+    request: httpx.Request,
+) -> httpx.Response:
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    body = {
+        "prices": [
+            [int(start.timestamp() * 1000), Decimal("12.34")],
+        ]
+    }
+    return httpx.Response(200, text=_encoded(body), request=request)
 
 
 async def _fetch(
@@ -385,6 +401,10 @@ async def test_historical_requests_usd_quotes_and_preserves_timestamps() -> None
     middle = datetime(2026, 10, 1, 12, 30, tzinfo=UTC)
     end = datetime(2026, 10, 2, tzinfo=UTC)
     requests: list[httpx.Request] = []
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
@@ -408,7 +428,11 @@ async def test_historical_requests_usd_quotes_and_preserves_timestamps() -> None
                 point[1] += offset
         return httpx.Response(200, text=_encoded(body), request=request)
 
-    provider, client = _provider(handler, api_key="history-key")
+    provider, client = _provider(
+        handler,
+        api_key="history-key",
+        sleep=record_sleep,
+    )
     try:
         rates = await provider.fetch_historical_rates(
             [" eth ", "BTC", "USD"],
@@ -441,6 +465,164 @@ async def test_historical_requests_usd_quotes_and_preserves_timestamps() -> None
     assert all(rate.provider_type is CurrencyType.CRYPTO for rate in rates)
     assert all(rate.quote_currency == "USD" for rate in rates)
     assert all(rate.effective_at.tzinfo is UTC for rate in rates)
+    assert delays == [2.0]
+
+
+@pytest.mark.asyncio
+async def test_historical_429_respects_retry_after_and_then_succeeds() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                429,
+                headers={"Retry-After": "5"},
+                request=request,
+            )
+        return _historical_success_response(request)
+
+    provider, client = _provider(handler, retries=1, sleep=record_sleep)
+    try:
+        rates = await provider.fetch_historical_rates(
+            ["BTC"],
+            datetime(2026, 10, 1, tzinfo=UTC),
+            datetime(2026, 10, 2, tzinfo=UTC),
+        )
+    finally:
+        await client.aclose()
+
+    assert calls == 2
+    assert len(rates) == 1
+    assert delays == [5.0]
+
+
+@pytest.mark.asyncio
+async def test_historical_429_uses_bounded_exponential_backoff_without_header() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls < 5:
+            return httpx.Response(429, request=request)
+        return _historical_success_response(request)
+
+    provider, client = _provider(handler, retries=4, sleep=record_sleep)
+    try:
+        rates = await provider.fetch_historical_rates(
+            ["BTC"],
+            datetime(2026, 10, 1, tzinfo=UTC),
+            datetime(2026, 10, 2, tzinfo=UTC),
+        )
+    finally:
+        await client.aclose()
+
+    assert calls == 5
+    assert len(rates) == 1
+    assert delays == [2.0, 4.0, 8.0, 8.0]
+
+
+@pytest.mark.asyncio
+async def test_historical_non_retryable_http_error_fails_immediately() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(400, request=request)
+
+    provider, client = _provider(handler, retries=3, sleep=record_sleep)
+    try:
+        with pytest.raises(
+            CoinGeckoRateProviderError,
+            match="HTTP status 400",
+        ):
+            await provider.fetch_historical_rates(
+                ["BTC"],
+                datetime(2026, 10, 1, tzinfo=UTC),
+                datetime(2026, 10, 2, tzinfo=UTC),
+            )
+    finally:
+        await client.aclose()
+
+    assert calls == 1
+    assert delays == []
+
+
+@pytest.mark.asyncio
+async def test_historical_rate_limit_exhaustion_raises_provider_error() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(429, request=request)
+
+    provider, client = _provider(handler, retries=2, sleep=record_sleep)
+    try:
+        with pytest.raises(
+            CoinGeckoRateProviderError,
+            match="HTTP status 429",
+        ):
+            await provider.fetch_historical_rates(
+                ["BTC"],
+                datetime(2026, 10, 1, tzinfo=UTC),
+                datetime(2026, 10, 2, tzinfo=UTC),
+            )
+    finally:
+        await client.aclose()
+
+    assert calls == 3
+    assert delays == [2.0, 4.0]
+
+
+@pytest.mark.asyncio
+async def test_historical_requests_are_throttled_between_coins() -> None:
+    calls: list[str] = []
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return _historical_success_response(request)
+
+    provider, client = _provider(handler, sleep=record_sleep)
+    try:
+        rates = await provider.fetch_historical_rates(
+            ["BTC", "ETH", "SOL"],
+            datetime(2026, 10, 1, tzinfo=UTC),
+            datetime(2026, 10, 2, tzinfo=UTC),
+        )
+    finally:
+        await client.aclose()
+
+    assert len(rates) == 3
+    assert calls == [
+        "/api/v3/coins/bitcoin/market_chart/range",
+        "/api/v3/coins/ethereum/market_chart/range",
+        "/api/v3/coins/solana/market_chart/range",
+    ]
+    assert delays == [2.0, 2.0]
 
 
 @pytest.mark.asyncio

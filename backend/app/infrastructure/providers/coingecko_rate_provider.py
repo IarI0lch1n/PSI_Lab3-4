@@ -1,9 +1,12 @@
 """CoinGecko adapter for current MDL rates and historical USD quotes."""
 
+import asyncio
 import json
-from collections.abc import Callable, Mapping, Sequence
+import math
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, DecimalException
+from email.utils import parsedate_to_datetime
 from types import MappingProxyType
 from typing import Final
 
@@ -22,6 +25,9 @@ from app.domain.interfaces.rate_provider import (
 _PROVIDER_NAME: Final[str] = "CoinGecko"
 _PRICE_ENDPOINT: Final[str] = "/simple/price"
 _UNIX_EPOCH: Final[datetime] = datetime(1970, 1, 1, tzinfo=UTC)
+_HISTORICAL_REQUEST_INTERVAL_SECONDS: Final[float] = 2.0
+_RATE_LIMIT_BACKOFF_BASE_SECONDS: Final[float] = 2.0
+_RATE_LIMIT_BACKOFF_MAX_SECONDS: Final[float] = 8.0
 _COINGECKO_IDS = MappingProxyType(
     {
         "BTC": "bitcoin",
@@ -53,9 +59,11 @@ class CoinGeckoRateProvider(RateProvider):
         *,
         client: httpx.AsyncClient | None = None,
         settings: Settings | None = None,
+        sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         self._client = client
         self._settings = settings or get_settings()
+        self._sleep = sleep or asyncio.sleep
         self._base_url = self._settings.coingecko_base_url.rstrip("/")
         self._api_key = self._configured_api_key(
             self._settings.coingecko_api_key
@@ -95,10 +103,15 @@ class CoinGeckoRateProvider(RateProvider):
         if not requested_codes:
             return ()
 
+        currency_codes = tuple(
+            code
+            for code in SUPPORTED_CRYPTO_CURRENCIES
+            if code in requested_codes
+        )
         rates: list[HistoricalProviderQuote] = []
-        for currency_code in SUPPORTED_CRYPTO_CURRENCIES:
-            if currency_code not in requested_codes:
-                continue
+        for index, currency_code in enumerate(currency_codes):
+            if index:
+                await self._sleep(_HISTORICAL_REQUEST_INTERVAL_SECONDS)
             response = await self._request_market_chart(
                 _COINGECKO_IDS[currency_code],
                 start_utc,
@@ -162,7 +175,52 @@ class CoinGeckoRateProvider(RateProvider):
             "from": str(self._unix_seconds(start_at)),
             "to": str(self._unix_seconds(end_at, round_up=True)),
         }
-        return await self._request(url, params)
+        return await self._request_historical(url, params)
+
+    async def _request_historical(
+        self,
+        url: str,
+        params: Mapping[str, str],
+    ) -> httpx.Response:
+        headers = (
+            {"x-cg-demo-api-key": self._api_key}
+            if self._api_key is not None
+            else {}
+        )
+        attempts = max(1, self._settings.coingecko_max_retries + 1)
+
+        for attempt in range(attempts):
+            try:
+                response = await self._get(url, params, headers)
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                status_code = exc.response.status_code
+                retryable = status_code == 429 or status_code >= 500
+                if not retryable or attempt + 1 == attempts:
+                    raise CoinGeckoRateProviderError(
+                        f"CoinGecko request failed with HTTP status {status_code}."
+                    ) from None
+                if status_code == 429:
+                    delay = self._retry_after_seconds(
+                        exc.response.headers.get("Retry-After")
+                    )
+                    if delay is None:
+                        delay = min(
+                            _RATE_LIMIT_BACKOFF_BASE_SECONDS
+                            * 2 ** min(attempt, 2),
+                            _RATE_LIMIT_BACKOFF_MAX_SECONDS,
+                        )
+                    await self._sleep(delay)
+            except httpx.RequestError:
+                if attempt + 1 == attempts:
+                    raise CoinGeckoRateProviderError(
+                        f"CoinGecko request failed after {attempts} attempt(s)."
+                    ) from None
+
+        raise CoinGeckoRateProviderError(
+            "CoinGecko request failed without a response."
+        )
 
     async def _request(
         self,
@@ -178,22 +236,7 @@ class CoinGeckoRateProvider(RateProvider):
 
         for attempt in range(attempts):
             try:
-                if self._client is not None:
-                    response = await self._client.get(
-                        url,
-                        params=params,
-                        headers=headers,
-                        timeout=self._settings.coingecko_timeout_seconds,
-                    )
-                else:
-                    async with httpx.AsyncClient(
-                        timeout=self._settings.coingecko_timeout_seconds
-                    ) as client:
-                        response = await client.get(
-                            url,
-                            params=params,
-                            headers=headers,
-                        )
+                response = await self._get(url, params, headers)
                 response.raise_for_status()
                 return response
             except httpx.HTTPStatusError as exc:
@@ -212,6 +255,42 @@ class CoinGeckoRateProvider(RateProvider):
         raise CoinGeckoRateProviderError(
             "CoinGecko request failed without a response."
         )
+
+    async def _get(
+        self,
+        url: str,
+        params: Mapping[str, str],
+        headers: Mapping[str, str],
+    ) -> httpx.Response:
+        if self._client is not None:
+            return await self._client.get(
+                url,
+                params=params,
+                headers=headers,
+                timeout=self._settings.coingecko_timeout_seconds,
+            )
+        async with httpx.AsyncClient(
+            timeout=self._settings.coingecko_timeout_seconds
+        ) as client:
+            return await client.get(url, params=params, headers=headers)
+
+    @staticmethod
+    def _retry_after_seconds(value: str | None) -> float | None:
+        if value is None:
+            return None
+        try:
+            seconds = float(value)
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(value)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if retry_at.tzinfo is None:
+                retry_at = retry_at.replace(tzinfo=UTC)
+            seconds = (retry_at.astimezone(UTC) - datetime.now(UTC)).total_seconds()
+        if not math.isfinite(seconds):
+            return None
+        return max(0.0, seconds)
 
     @classmethod
     def _parse_market_chart_response(
