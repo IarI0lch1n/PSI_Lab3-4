@@ -16,8 +16,15 @@ from app.domain.entities.currency import (
 from app.domain.entities.rate_snapshot import RateSnapshot
 from app.domain.enums.currency_type import CurrencyType
 from app.domain.enums.freshness_state import FreshnessState
-from app.domain.interfaces.rate_provider import ProviderRate
-from tests.fixtures.fake_rate_providers import FakeRateProvider
+from app.domain.interfaces.rate_provider import (
+    HistoricalProviderQuote,
+    ProviderRate,
+)
+from tests.fixtures.fake_rate_providers import (
+    FakeBnmRateProvider,
+    FakeCoinGeckoRateProvider,
+    FakeRateProvider,
+)
 
 
 _MOLDOVA_TIMEZONE = ZoneInfo("Europe/Chisinau")
@@ -85,7 +92,7 @@ def rates_for_date(
     effective_at: datetime,
     *,
     include_usdt: bool = True,
-) -> tuple[ProviderRate, ...]:
+) -> tuple[ProviderRate | HistoricalProviderQuote, ...]:
     fiat = tuple(
         ProviderRate(
             code,
@@ -99,13 +106,13 @@ def rates_for_date(
         if code != "MDL"
     )
     crypto = tuple(
-        ProviderRate(
-            code,
-            Decimal(index * 100),
-            1,
-            "Fake CoinGecko",
-            CurrencyType.CRYPTO,
-            effective_at,
+        HistoricalProviderQuote(
+            currency=code,
+            quoted_price=Decimal(index * 100),
+            quote_currency="USD",
+            provider_name="Fake CoinGecko",
+            provider_type=CurrencyType.CRYPTO,
+            effective_at=effective_at,
         )
         for index, code in enumerate(SUPPORTED_CRYPTO_CURRENCIES, start=1)
         if include_usdt or code != "USDT"
@@ -155,6 +162,12 @@ async def test_bootstrap_persists_complete_daily_normalized_snapshots() -> None:
     assert second_usd.is_fallback is True
     assert second_usd.is_stale is False
     assert second_usd.effective_at == first_usd.effective_at
+    bitcoin = snapshots[1].get_rate("BTC")
+    assert bitcoin is not None
+    assert bitcoin.normalized_rate_to_mdl == Decimal("200")
+    assert bitcoin.provider_name == "Fake CoinGecko"
+    assert bitcoin.provider_type is CurrencyType.CRYPTO
+    assert bitcoin.effective_at == datetime(2026, 10, 28, 18, tzinfo=UTC)
     mdl = snapshots[1].get_rate("MDL")
     assert mdl is not None
     assert mdl.normalized_rate_to_mdl == Decimal("1")
@@ -191,6 +204,31 @@ async def test_bootstrap_excludes_incomplete_days() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bootstrap_does_not_persist_crypto_quotes_without_usd_bridge() -> None:
+    complete_day = rates_for_day(27)
+    next_day_quotes = tuple(
+        rate
+        for rate in rates_for_day(28)
+        if isinstance(rate, HistoricalProviderQuote)
+    )
+    rates_without_usd_bridge = tuple(
+        rate
+        for rate in complete_day
+        if not (isinstance(rate, ProviderRate) and rate.currency == "USD")
+    ) + next_day_quotes
+    repository = StubRepository()
+
+    snapshots = await BootstrapHistory(
+        [FakeRateProvider(historical_rates=rates_without_usd_bridge)],
+        StubUnitOfWork(repository),
+        clock=lambda: datetime(2026, 10, 28, 20, tzinfo=UTC),
+    ).execute()
+
+    assert snapshots == ()
+    assert repository.saved == []
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_incrementally_fills_missing_days_and_is_idempotent() -> None:
     repository = StubRepository()
     unit_of_work = StubUnitOfWork(repository)
@@ -206,23 +244,55 @@ async def test_bootstrap_incrementally_fills_missing_days_and_is_idempotent() ->
     assert len(original_snapshots) == 1
     original_snapshot = original_snapshots[0]
 
-    later_fiat = rates_for_date(datetime(2026, 11, 1, 18, tzinfo=UTC))
+    friday_rates = rates_for_date(datetime(2026, 10, 30, 18, tzinfo=UTC))
+    later_fiat = tuple(
+        rate
+        for day in (2, 3, 4)
+        for rate in rates_for_date(
+            datetime(2026, 11, day, 18, tzinfo=UTC)
+        )
+        if isinstance(rate, ProviderRate)
+    )
+    later_crypto = tuple(
+        rate
+        for day in (2, 3, 4)
+        for rate in rates_for_date(
+            datetime(2026, 11, day, 18, tzinfo=UTC)
+        )
+        if isinstance(rate, HistoricalProviderQuote)
+    )
     later_rates = [
         *rates_for_day(28),
-        *later_fiat,
         *(
             rate
-            for day in (2, 3, 4)
+            for rate in friday_rates
+            if isinstance(rate, ProviderRate)
+        ),
+        *later_fiat,
+        *later_crypto,
+        *(
+            rate
             for rate in rates_for_date(
-                datetime(2026, 11, day, 18, tzinfo=UTC)
+                datetime(2026, 11, 1, 18, tzinfo=UTC)
             )
-            if rate.provider_type is CurrencyType.CRYPTO
+            if isinstance(rate, HistoricalProviderQuote)
         ),
     ]
-    later_provider = FakeRateProvider(historical_rates=later_rates)
+    bnm_rates = tuple(
+        rate for rate in later_rates if isinstance(rate, ProviderRate)
+    )
+    coingecko_quotes = tuple(
+        rate
+        for rate in later_rates
+        if isinstance(rate, HistoricalProviderQuote)
+    )
+    later_bnm_provider = FakeBnmRateProvider(historical_rates=bnm_rates)
+    later_coingecko_provider = FakeCoinGeckoRateProvider(
+        historical_rates=coingecko_quotes
+    )
     later_clock = lambda: datetime(2026, 11, 4, 20, tzinfo=UTC)
     later_snapshots = await BootstrapHistory(
-        [later_provider],
+        [later_bnm_provider, later_coingecko_provider],
         unit_of_work,
         clock=later_clock,
     ).execute()
@@ -231,8 +301,11 @@ async def test_bootstrap_incrementally_fills_missing_days_and_is_idempotent() ->
         snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).date().isoformat()
         for snapshot in later_snapshots
     ] == ["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04"]
-    assert later_provider.historical_call_count == 1
-    assert later_provider.historical_requests[0].end_at == later_clock()
+    assert all(len(snapshot.rates) == 18 for snapshot in later_snapshots)
+    assert later_bnm_provider.historical_call_count == 1
+    assert later_coingecko_provider.historical_call_count == 1
+    assert later_bnm_provider.historical_requests[0].end_at == later_clock()
+    assert later_coingecko_provider.historical_requests[0].end_at == later_clock()
     assert repository.saved[0] is original_snapshot
     assert len(repository.saved) == 5
     persisted_dates = [
@@ -244,14 +317,26 @@ async def test_bootstrap_incrementally_fills_missing_days_and_is_idempotent() ->
     reused_usd = next(
         snapshot.get_rate("USD")
         for snapshot in later_snapshots
-        if snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).day == 2
+        if snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).day == 1
     )
     assert reused_usd is not None
     assert reused_usd.provider_name == "Fake BNM"
-    assert reused_usd.effective_at == datetime(2026, 11, 1, 18, tzinfo=UTC)
+    assert reused_usd.effective_at == datetime(2026, 10, 30, 18, tzinfo=UTC)
     assert reused_usd.freshness_state is FreshnessState.FALLBACK
     assert reused_usd.is_fallback is True
     assert reused_usd.is_stale is False
+    normalized_bitcoin = next(
+        snapshot.get_rate("BTC")
+        for snapshot in later_snapshots
+        if snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).day == 1
+    )
+    assert normalized_bitcoin is not None
+    assert normalized_bitcoin.normalized_rate_to_mdl == Decimal("200")
+    assert normalized_bitcoin.provider_name == "Fake CoinGecko"
+    assert normalized_bitcoin.provider_type is CurrencyType.CRYPTO
+    assert normalized_bitcoin.effective_at == datetime(
+        2026, 11, 1, 18, tzinfo=UTC
+    )
 
     analytics = AnalyticsService(
         unit_of_work,
@@ -280,14 +365,18 @@ async def test_bootstrap_incrementally_fills_missing_days_and_is_idempotent() ->
     ]
 
     commit_count = unit_of_work.commit_calls
-    idempotent_provider = FakeRateProvider(historical_rates=later_rates)
+    idempotent_bnm_provider = FakeBnmRateProvider(historical_rates=bnm_rates)
+    idempotent_coingecko_provider = FakeCoinGeckoRateProvider(
+        historical_rates=coingecko_quotes
+    )
     repeated = await BootstrapHistory(
-        [idempotent_provider],
+        [idempotent_bnm_provider, idempotent_coingecko_provider],
         unit_of_work,
         clock=later_clock,
     ).execute()
     assert repeated == ()
-    assert idempotent_provider.historical_call_count == 1
+    assert idempotent_bnm_provider.historical_call_count == 1
+    assert idempotent_coingecko_provider.historical_call_count == 1
     assert repository.saved[0] is original_snapshot
     assert len(repository.saved) == 5
     assert unit_of_work.commit_calls == commit_count

@@ -11,6 +11,7 @@ import pytest
 
 from app.domain.interfaces import (
     CurrencyRepository,
+    HistoricalProviderQuote,
     ProviderRate,
     RateProvider,
     RateRepository,
@@ -57,8 +58,12 @@ def test_provider_rate_is_immutable_and_has_no_snapshot_assembly_fields() -> Non
     }.isdisjoint(ProviderRate.__dataclass_fields__)
 
 
-def test_provider_fetch_methods_return_provider_rates() -> None:
-    assert get_type_hints(RateProvider.fetch_latest_rates)["return"] == Sequence[ProviderRate]
+def test_provider_fetch_methods_return_explicit_rate_representations() -> None:
     assert (
-        get_type_hints(RateProvider.fetch_historical_rates)["return"] == Sequence[ProviderRate]
+        get_type_hints(RateProvider.fetch_latest_rates)["return"]
+        == Sequence[ProviderRate]
+    )
+    assert (
+        get_type_hints(RateProvider.fetch_historical_rates)["return"]
+        == Sequence[ProviderRate | HistoricalProviderQuote]
     )

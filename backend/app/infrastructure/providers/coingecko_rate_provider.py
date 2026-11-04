@@ -1,4 +1,4 @@
-"""CoinGecko adapter for normalized current and historical crypto rates."""
+"""CoinGecko adapter for current MDL rates and historical USD quotes."""
 
 import json
 from collections.abc import Callable, Mapping, Sequence
@@ -12,7 +12,11 @@ import httpx
 from app.core.config.settings import Settings, get_settings
 from app.domain.entities.currency import SUPPORTED_CRYPTO_CURRENCIES
 from app.domain.enums.currency_type import CurrencyType
-from app.domain.interfaces.rate_provider import ProviderRate, RateProvider
+from app.domain.interfaces.rate_provider import (
+    HistoricalProviderQuote,
+    ProviderRate,
+    RateProvider,
+)
 
 
 _PROVIDER_NAME: Final[str] = "CoinGecko"
@@ -42,7 +46,7 @@ class CoinGeckoRateProviderError(RuntimeError):
 
 
 class CoinGeckoRateProvider(RateProvider):
-    """Fetch and normalize CoinGecko prices without freshness policy."""
+    """Fetch current MDL rates and historical USD quotes without freshness policy."""
 
     def __init__(
         self,
@@ -74,8 +78,8 @@ class CoinGeckoRateProvider(RateProvider):
         currency_codes: Sequence[str],
         start_at: datetime,
         end_at: datetime,
-    ) -> Sequence[ProviderRate]:
-        """Fetch exact MDL price points in an inclusive UTC time window."""
+    ) -> Sequence[HistoricalProviderQuote]:
+        """Fetch historical USD price points in an inclusive UTC time window."""
         start_utc = self._aware_utc(start_at, "start_at")
         end_utc = self._aware_utc(end_at, "end_at")
         if start_utc > end_utc:
@@ -91,7 +95,7 @@ class CoinGeckoRateProvider(RateProvider):
         if not requested_codes:
             return ()
 
-        rates: list[ProviderRate] = []
+        rates: list[HistoricalProviderQuote] = []
         for currency_code in SUPPORTED_CRYPTO_CURRENCIES:
             if currency_code not in requested_codes:
                 continue
@@ -154,7 +158,7 @@ class CoinGeckoRateProvider(RateProvider):
     ) -> httpx.Response:
         url = f"{self._base_url}/coins/{coin_id}/market_chart/range"
         params = {
-            "vs_currency": "mdl",
+            "vs_currency": "usd",
             "from": str(self._unix_seconds(start_at)),
             "to": str(self._unix_seconds(end_at, round_up=True)),
         }
@@ -216,7 +220,7 @@ class CoinGeckoRateProvider(RateProvider):
         currency_code: str,
         start_at: datetime,
         end_at: datetime,
-    ) -> tuple[ProviderRate, ...]:
+    ) -> tuple[HistoricalProviderQuote, ...]:
         try:
             data = json.loads(
                 body,
@@ -236,7 +240,7 @@ class CoinGeckoRateProvider(RateProvider):
                 "CoinGecko historical JSON must contain a prices array."
             )
 
-        rates_by_timestamp: dict[datetime, ProviderRate] = {}
+        rates_by_timestamp: dict[datetime, HistoricalProviderQuote] = {}
         for point in data["prices"]:
             if not isinstance(point, list) or len(point) < 2:
                 raise CoinGeckoRateProviderError(
@@ -250,7 +254,7 @@ class CoinGeckoRateProvider(RateProvider):
                 or price <= 0
             ):
                 raise CoinGeckoRateProviderError(
-                    "CoinGecko historical prices contain an invalid MDL price."
+                    "CoinGecko historical prices contain an invalid USD price."
                 )
             if not start_at <= effective_at <= end_at:
                 continue
@@ -258,10 +262,10 @@ class CoinGeckoRateProvider(RateProvider):
                 raise CoinGeckoRateProviderError(
                     "CoinGecko historical prices contain a duplicate timestamp."
                 )
-            rates_by_timestamp[effective_at] = ProviderRate(
+            rates_by_timestamp[effective_at] = HistoricalProviderQuote(
                 currency=currency_code,
-                normalized_rate_to_mdl=price,
-                nominal_unit=1,
+                quoted_price=price,
+                quote_currency="USD",
                 provider_name=_PROVIDER_NAME,
                 provider_type=CurrencyType.CRYPTO,
                 effective_at=effective_at,

@@ -11,6 +11,7 @@ import pytest
 from app.core.config.settings import Settings
 from app.domain.entities.currency import SUPPORTED_CRYPTO_CURRENCIES
 from app.domain.enums.currency_type import CurrencyType
+from app.domain.interfaces.rate_provider import HistoricalProviderQuote
 from app.infrastructure.providers.coingecko_rate_provider import (
     CoinGeckoRateProvider,
     CoinGeckoRateProviderError,
@@ -379,7 +380,7 @@ async def test_transport_failure_retries_without_live_network() -> None:
 
 
 @pytest.mark.asyncio
-async def test_historical_requests_each_selected_coin_and_normalizes_timestamps() -> None:
+async def test_historical_requests_usd_quotes_and_preserves_timestamps() -> None:
     start = datetime(2026, 10, 1, tzinfo=UTC)
     middle = datetime(2026, 10, 1, 12, 30, tzinfo=UTC)
     end = datetime(2026, 10, 2, tzinfo=UTC)
@@ -387,6 +388,12 @@ async def test_historical_requests_each_selected_coin_and_normalizes_timestamps(
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
+        if request.url.params["vs_currency"] != "usd":
+            return httpx.Response(
+                400,
+                json={"error": "invalid vs_currency"},
+                request=request,
+            )
         offset = Decimal("0.000000000000000001")
         body = {
             "prices": [
@@ -416,7 +423,7 @@ async def test_historical_requests_each_selected_coin_and_normalizes_timestamps(
         "/api/v3/coins/ethereum/market_chart/range",
     ]
     for request in requests:
-        assert request.url.params["vs_currency"] == "mdl"
+        assert request.url.params["vs_currency"] == "usd"
         assert request.url.params["from"] == str(int(start.timestamp()))
         assert request.url.params["to"] == str(int(end.timestamp()))
         assert request.headers["x-cg-demo-api-key"] == "history-key"
@@ -426,15 +433,13 @@ async def test_historical_requests_each_selected_coin_and_normalizes_timestamps(
         (middle, "BTC"),
         (middle, "ETH"),
     ]
-    assert rates[0].normalized_rate_to_mdl == Decimal(
-        "10.123456789012345678"
-    )
-    assert rates[1].normalized_rate_to_mdl == Decimal(
-        "10.123456789012345679"
-    )
+    assert isinstance(rates[0], HistoricalProviderQuote)
+    assert not hasattr(rates[0], "normalized_rate_to_mdl")
+    assert rates[0].quoted_price == Decimal("10.123456789012345678")
+    assert rates[1].quoted_price == Decimal("10.123456789012345679")
     assert all(rate.provider_name == "CoinGecko" for rate in rates)
     assert all(rate.provider_type is CurrencyType.CRYPTO for rate in rates)
-    assert all(rate.nominal_unit == 1 for rate in rates)
+    assert all(rate.quote_currency == "USD" for rate in rates)
     assert all(rate.effective_at.tzinfo is UTC for rate in rates)
 
 
@@ -469,7 +474,7 @@ async def test_historical_non_crypto_request_returns_without_http_calls() -> Non
         ("{", "malformed historical JSON"),
         ('{"prices": {}}', "prices array"),
         ('{"prices": [[1]]}', "invalid point"),
-        ('{"prices": [[1, 0]]}', "invalid MDL price"),
+        ('{"prices": [[1, 0]]}', "invalid USD price"),
         ('{"prices": [[1.5, 1]]}', "invalid timestamp"),
         ('{"prices": [[1000, 1], [1000, 2]]}', "duplicate timestamp"),
     ],
