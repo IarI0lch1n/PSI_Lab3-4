@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'core/api/rates_api_client.dart';
-import 'features/converter/presentation/converter_screen.dart';
-import 'features/rates/presentation/current_rates_screen.dart';
-import 'features/rates/presentation/all_currencies_screen.dart';
-import 'features/analytics/presentation/analytics_screen.dart';
+import 'core/presentation/currency_hub_navigation.dart';
+import 'core/presentation/currency_hub_widgets.dart';
 
 void main() {
   runApp(const CurrencyHubApp());
@@ -39,12 +37,8 @@ class _CurrencyHubAppState extends State<CurrencyHubApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'CurrencyHub',
-      home: CurrentRatesScreen(apiClient: _apiClient),
-      routes: {
-        '/converter': (_) => ConverterScreen(apiClient: _apiClient),
-        '/all-currencies': (_) => AllCurrenciesScreen(apiClient: _apiClient),
-        '/analytics': (_) => AnalyticsScreen(apiClient: _apiClient),
-      },
+      theme: CurrencyHubTheme.light,
+      home: CurrencyHubNavigationShell(apiClient: _apiClient),
     );
   }
 }

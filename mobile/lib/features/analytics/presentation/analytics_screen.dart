@@ -1,11 +1,16 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/api/rates_api_client.dart';
 import '../../../core/models/rate_models.dart';
+import '../../../core/presentation/currency_amount_formatter.dart';
+import '../../../core/presentation/currency_hub_widgets.dart';
 
 class AnalyticsScreen extends StatefulWidget {
-  const AnalyticsScreen({required this.apiClient, super.key});
+  const AnalyticsScreen({required this.apiClient, super.key, this.onNavigate});
+
   final RatesApiClient apiClient;
+  final ValueChanged<CurrencyHubDestination>? onNavigate;
 
   @override
   State<AnalyticsScreen> createState() => _AnalyticsScreenState();
@@ -18,6 +23,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   AnalyticsPeriod _period = AnalyticsPeriod.sevenDays;
   HistoryResponse? _history;
   AnalyticsResponse? _analytics;
+  int _selectedPointIndex = 0;
   bool _loading = true;
   bool _failed = false;
   int _requestSequence = 0;
@@ -96,6 +102,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       setState(() {
         _history = history;
         _analytics = analytics;
+        _selectedPointIndex = history.points.isEmpty
+            ? 0
+            : history.points.length - 1;
         _loading = false;
       });
     } on Exception {
@@ -187,32 +196,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     _loadAnalytics();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Rate Analytics')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              'Historical Analytics',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const Text(
-              'Every point keeps the provider and effective time for both rates.',
-            ),
-            if (_currencies.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _controls(),
-            ],
-            const SizedBox(height: 16),
-            _content(),
-          ],
-        ),
-      ),
-    );
+  void _selectPoint(int index) {
+    setState(() => _selectedPointIndex = index);
   }
+
+  @override
+  Widget build(BuildContext context) => CurrencyHubScaffold(
+    title: 'Rate Analytics',
+    destination: CurrencyHubDestination.analytics,
+    onDestinationSelected: widget.onNavigate ?? (_) {},
+    body: ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        Text(
+          'Historical Analytics',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 4),
+        const Text('Explore the movement and source of each rate.'),
+        if (_currencies.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _controls(),
+        ],
+        const SizedBox(height: 14),
+        _content(),
+      ],
+    ),
+  );
 
   Widget _controls() => Column(
     children: [
@@ -228,7 +238,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           _loadAnalytics();
         },
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 10),
       DropdownButtonFormField<String>(
         key: const Key('analytics-quote'),
         initialValue: _quote,
@@ -264,7 +274,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     for (final currency in _currencies)
       DropdownMenuItem(
         value: currency.code,
-        child: Text('${currency.code} - ${currency.name}'),
+        child: Text('${currency.code} — ${currency.name}'),
       ),
   ];
 
@@ -272,6 +282,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (_loading) {
       return const Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 12),
@@ -283,6 +294,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (_failed) {
       return Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Analytics are unavailable.'),
             const SizedBox(height: 12),
@@ -302,39 +314,253 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         key: const Key('analytics-empty'),
       );
     }
+
+    final selectedPoint = history.points[_selectedPointIndex];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _HistoryChart(
+          points: history.points,
+          selectedIndex: _selectedPointIndex,
+          onSelected: _selectPoint,
+        ),
+        const SizedBox(height: 10),
+        _SelectedPointCard(point: selectedPoint),
+        const SizedBox(height: 8),
         _MetricsCard(analytics: analytics),
+        const SizedBox(height: 8),
         _ProvenanceCard(summary: analytics.provenanceSummary),
-        for (final point in history.points)
-          _PointCard(
-            key: ValueKey('analytics-${point.rateContext.snapshotId}'),
-            point: point,
-          ),
       ],
     );
   }
 }
 
+class _HistoryChart extends StatelessWidget {
+  const _HistoryChart({
+    required this.points,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<HistoryPoint> points;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = points.map((point) => Decimal.parse(point.value)).toList();
+    final maximum = values.reduce((a, b) => a > b ? a : b);
+    return Card(
+      key: const Key('analytics-chart'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Rate history',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 156,
+              child: SingleChildScrollView(
+                key: const Key('analytics-chart-scroll'),
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (var index = 0; index < points.length; index++)
+                      _ChartBar(
+                        point: points[index],
+                        index: index,
+                        value: values[index],
+                        previousValue: index == 0 ? null : values[index - 1],
+                        maximumValue: maximum,
+                        selected: selectedIndex == index,
+                        onTap: () => onSelected(index),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChartBar extends StatelessWidget {
+  const _ChartBar({
+    required this.point,
+    required this.index,
+    required this.value,
+    required this.previousValue,
+    required this.maximumValue,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final HistoryPoint point;
+  final int index;
+  final Decimal value;
+  final Decimal? previousValue;
+  final Decimal maximumValue;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = previousValue == null
+        ? CurrencyHubColors.neutral
+        : value > previousValue!
+        ? CurrencyHubColors.positive
+        : value < previousValue!
+        ? CurrencyHubColors.negative
+        : CurrencyHubColors.neutral;
+    final ratio = maximumValue <= Decimal.zero
+        ? 0.0
+        : (value / maximumValue).toDouble().clamp(0.0, 1.0).toDouble();
+    final label = CurrencyAmountFormatter.format(point.value);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${point.date}, $label',
+      child: InkWell(
+        key: Key('analytics-bar-$index'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 58,
+          height: 156,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          decoration: selected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: scheme.primary),
+                )
+              : null,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const Spacer(),
+              Container(
+                key: Key('analytics-bar-color-$index'),
+                width: 28,
+                height: 16 + (ratio * 84),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(6),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                point.date.substring(5),
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedPointCard extends StatelessWidget {
+  const _SelectedPointCard({required this.point});
+
+  final HistoryPoint point;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = point.rateContext.sourceRate;
+    final target = point.rateContext.targetRate;
+    return Card(
+      key: const Key('analytics-selected-point'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Selected day', style: Theme.of(context).textTheme.labelLarge),
+            Text(point.date, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            SelectableText(
+              CurrencyAmountFormatter.format(point.value),
+              key: const Key('analytics-selected-value'),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Divider(height: 24),
+            _RateContextDetails(label: 'Base', rate: source),
+            const SizedBox(height: 12),
+            _RateContextDetails(label: 'Quote', rate: target),
+            const SizedBox(height: 10),
+            ProvenanceLine(
+              label: 'Snapshot',
+              value: point.rateContext.snapshotId,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RateContextDetails extends StatelessWidget {
+  const _RateContextDetails({required this.label, required this.rate});
+
+  final String label;
+  final RateProvenance rate;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        '$label currency — ${rate.currency}',
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+      ProvenanceLine(label: 'Provider', value: rate.providerName),
+      ProvenanceLine(label: 'Rate effective', value: rate.effectiveAt),
+      FreshnessBadges(rate: rate),
+    ],
+  );
+}
+
 class _MetricsCard extends StatelessWidget {
   const _MetricsCard({required this.analytics});
+
   final AnalyticsResponse analytics;
 
   @override
   Widget build(BuildContext context) => Card(
     key: const Key('analytics-metrics'),
     child: Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       child: Wrap(
-        spacing: 20,
+        spacing: 12,
         runSpacing: 12,
         children: [
           _Metric('Minimum', analytics.minimum!),
           _Metric('Maximum', analytics.maximum!),
           _Metric('Average', analytics.average!),
-          _Metric('Absolute change', analytics.absoluteChange!),
-          _Metric('Percentage change', '${analytics.percentageChange!}%'),
+          _Metric('Change', analytics.absoluteChange!),
+          _Metric('Change %', '${analytics.percentageChange!}%'),
           _Metric('Trend', _trendLabel(analytics.trend!)),
         ],
       ),
@@ -344,21 +570,36 @@ class _MetricsCard extends StatelessWidget {
 
 class _Metric extends StatelessWidget {
   const _Metric(this.label, this.value);
+
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 140,
+    width: 142,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [Text(label), SelectableText(value)],
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        SelectableText(
+          value.endsWith('%')
+              ? '${CurrencyAmountFormatter.format(value.substring(0, value.length - 1))}%'
+              : _isTrend(value)
+              ? value
+              : CurrencyAmountFormatter.format(value),
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+      ],
     ),
   );
+
+  bool _isTrend(String value) =>
+      value == 'Growth' || value == 'Decline' || value == 'Unchanged';
 }
 
 class _ProvenanceCard extends StatelessWidget {
   const _ProvenanceCard({required this.summary});
+
   final ProvenanceSummary summary;
 
   @override
@@ -367,18 +608,28 @@ class _ProvenanceCard extends StatelessWidget {
     return Card(
       key: const Key('analytics-provenance'),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Data context', style: Theme.of(context).textTheme.titleLarge),
-            Text('Base providers: ${summary.sourceProviders.join(', ')}'),
-            Text('Quote providers: ${summary.targetProviders.join(', ')}'),
-            Text('Live entries: ${counts.live}'),
-            Text('Fallback entries: ${counts.fallback}'),
-            Text('Cached entries: ${counts.cached}'),
-            Text('Stale entries: ${summary.staleEntryCount}'),
-            Text('Fallback used: ${summary.fallbackEntryCount}'),
+            Text(
+              'Data context',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text('Base: ${summary.sourceProviders.join(', ')}'),
+            Text('Quote: ${summary.targetProviders.join(', ')}'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _CountChip('Live', counts.live),
+                _CountChip('Fallback', counts.fallback),
+                _CountChip('Cached', counts.cached),
+                _CountChip('Stale', summary.staleEntryCount),
+                _CountChip('Fallback used', summary.fallbackEntryCount),
+              ],
+            ),
           ],
         ),
       ),
@@ -386,60 +637,16 @@ class _ProvenanceCard extends StatelessWidget {
   }
 }
 
-class _PointCard extends StatelessWidget {
-  const _PointCard({required this.point, super.key});
-  final HistoryPoint point;
+class _CountChip extends StatelessWidget {
+  const _CountChip(this.label, this.count);
 
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(point.date, style: Theme.of(context).textTheme.titleLarge),
-          SelectableText(point.value),
-          const SizedBox(height: 12),
-          _RateLeg(label: 'Base', rate: point.rateContext.sourceRate),
-          const Divider(),
-          _RateLeg(label: 'Quote', rate: point.rateContext.targetRate),
-          Text('Snapshot ${point.rateContext.snapshotId}'),
-        ],
-      ),
-    ),
-  );
-}
-
-class _RateLeg extends StatelessWidget {
-  const _RateLeg({required this.label, required this.rate});
   final String label;
-  final RateProvenance rate;
+  final int count;
 
   @override
-  Widget build(BuildContext context) => Column(
-    key: ValueKey('analytics-leg-$label-${rate.currency}'),
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('$label: ${rate.currency}'),
-      Text(rate.providerName),
-      Text(rate.effectiveAt),
-      Wrap(
-        spacing: 8,
-        children: [
-          Chip(label: Text(_freshnessLabel(rate.freshnessState))),
-          if (rate.isFallback) const Chip(label: Text('Fallback used')),
-          if (rate.isStale) const Chip(label: Text('Stale')),
-        ],
-      ),
-    ],
-  );
+  Widget build(BuildContext context) =>
+      Chip(visualDensity: VisualDensity.compact, label: Text('$label: $count'));
 }
-
-String _freshnessLabel(FreshnessState state) => switch (state) {
-  FreshnessState.live => 'Live',
-  FreshnessState.fallback => 'Fallback',
-  FreshnessState.cached => 'Cached',
-};
 
 String _trendLabel(AnalyticsTrend trend) => switch (trend) {
   AnalyticsTrend.growth => 'Growth',

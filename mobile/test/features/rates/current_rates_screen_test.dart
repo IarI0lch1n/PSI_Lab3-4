@@ -29,7 +29,7 @@ void main() {
     await tester.pumpWidget(_screen(apiClient));
 
     expect(find.text('Loading current rates…'), findsOneWidget);
-    expect(find.text('17.400000000000000001'), findsNothing);
+    expect(find.text('17.40'), findsNothing);
     expect(find.byType(Card), findsNothing);
 
     currenciesResponse.complete(_jsonResponse(_currenciesJson()));
@@ -37,41 +37,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Loading current rates…'), findsNothing);
-    expect(find.text('17.400000000000000001'), findsOneWidget);
+    expect(find.text('17.40'), findsOneWidget);
   });
 
-  testWidgets(
-    'renders each currency with exact value, provider, effective time, and freshness',
-    (tester) async {
-      await _pumpScreen(tester);
+  testWidgets('keeps rate metadata collapsed and freshness visible', (
+    tester,
+  ) async {
+    await _pumpScreen(tester);
 
-      final usdCard = _cardFor(tester, 'USD');
-      expect(_textIn(usdCard), contains('US Dollar'));
-      expect(_textIn(usdCard), contains('Fiat'));
-      expect(_textIn(usdCard), contains('17.400000000000000001'));
-      expect(_textIn(usdCard), contains('BNM'));
-      expect(_textIn(usdCard), contains(_usdEffectiveAt));
-      expect(_textIn(usdCard), contains('Live'));
-      expect(_textIn(usdCard), contains('Nominal unit: 1'));
+    final usdCard = _cardFor(tester, 'USD');
+    expect(_textIn(usdCard), contains('US Dollar'));
+    expect(_textIn(usdCard), contains('Fiat'));
+    expect(_textIn(usdCard), contains('17.40'));
+    expect(_textIn(usdCard), isNot(contains('BNM')));
+    expect(_textIn(usdCard), isNot(contains(_usdEffectiveAt)));
+    expect(_textIn(usdCard), contains('Live'));
+    expect(_textIn(usdCard), contains('Show more'));
 
-      final ronCard = _cardFor(tester, 'RON');
-      expect(_textIn(ronCard), contains('Romanian Leu'));
-      expect(_textIn(ronCard), contains('Fiat'));
-      expect(_textIn(ronCard), contains('BNM'));
-      expect(_textIn(ronCard), contains(_ronEffectiveAt));
-      expect(_textIn(ronCard), contains('Fallback'));
-      expect(_textIn(ronCard), contains('Fallback used'));
-      expect(_textIn(ronCard), contains('Nominal unit: 100'));
+    final ronCard = _cardFor(tester, 'RON');
+    expect(_textIn(ronCard), contains('Romanian Leu'));
+    expect(_textIn(ronCard), contains('Fiat'));
+    expect(_textIn(ronCard), contains('Fallback'));
+    expect(_textIn(ronCard), contains('Fallback used'));
 
-      final btcCard = _cardFor(tester, 'BTC');
-      expect(_textIn(btcCard), contains('Bitcoin'));
-      expect(_textIn(btcCard), contains('Crypto'));
-      expect(_textIn(btcCard), contains('CoinGecko'));
-      expect(_textIn(btcCard), contains(_btcEffectiveAt));
-      expect(_textIn(btcCard), contains('Cached'));
-      expect(_textIn(btcCard), contains('Stale'));
-    },
-  );
+    final btcCard = _cardFor(tester, 'BTC');
+    expect(_textIn(btcCard), contains('Bitcoin'));
+    expect(_textIn(btcCard), contains('Crypto'));
+    expect(_textIn(btcCard), contains('Cached'));
+    expect(_textIn(btcCard), contains('Stale'));
+
+    await tester.tap(
+      find.descendant(of: usdCard, matching: find.text('Show more')),
+    );
+    await tester.pumpAndSettle();
+    expect(_textIn(usdCard), contains('BNM'));
+    expect(_textIn(usdCard), contains(_usdEffectiveAt));
+    expect(_textIn(usdCard), contains('Show less'));
+  });
 
   testWidgets('shows snapshot collection separately from original rate times', (
     tester,
@@ -80,35 +82,17 @@ void main() {
 
     expect(find.text('Snapshot collected'), findsOneWidget);
     expect(find.text(_capturedAt), findsOneWidget);
-    for (final effectiveAt in [
-      _usdEffectiveAt,
-      _ronEffectiveAt,
-      _btcEffectiveAt,
-    ]) {
-      expect(find.text(effectiveAt), findsOneWidget);
+    for (final code in ['USD', 'RON', 'BTC']) {
+      final card = _cardFor(tester, code);
+      expect(
+        find.descendant(of: card, matching: find.text(_capturedAt)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: card, matching: find.textContaining('effective')),
+        findsNothing,
+      );
     }
-
-    expect(
-      find.descendant(
-        of: _cardFor(tester, 'USD'),
-        matching: find.text(_capturedAt),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: _cardFor(tester, 'RON'),
-        matching: find.text(_capturedAt),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: _cardFor(tester, 'BTC'),
-        matching: find.text(_capturedAt),
-      ),
-      findsNothing,
-    );
   });
 
   testWidgets('shows fallback and stale flags independently per rate card', (
@@ -189,7 +173,7 @@ void main() {
 
     expect(requestCounts['currencies'], 2);
     expect(requestCounts['latest'], 2);
-    expect(find.text('17.400000000000000001'), findsOneWidget);
+    expect(find.text('17.40'), findsOneWidget);
     expect(find.text('Current rates are unavailable.'), findsNothing);
   });
 
@@ -225,6 +209,68 @@ void main() {
     expect(find.byType(Card), findsNothing);
     expect(find.text('Retry'), findsOneWidget);
   });
+
+  testWidgets('search matches currency code and name locally', (tester) async {
+    final requests = <String>[];
+    await _pumpScreen(tester, requests: requests);
+
+    await tester.enterText(
+      find.byKey(const Key('current-rates-search')),
+      'eur',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('rate-USD')), findsNothing);
+    expect(find.byKey(const Key('rate-RON')), findsNothing);
+    expect(find.byKey(const Key('rate-BTC')), findsNothing);
+    expect(find.text('No currencies match your search.'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('current-rates-search')),
+      'btc',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('rate-BTC')), findsOneWidget);
+    expect(find.byKey(const Key('rate-USD')), findsNothing);
+    await tester.enterText(
+      find.byKey(const Key('current-rates-search')),
+      '  bitcoin  ',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('rate-BTC')), findsOneWidget);
+    expect(find.byKey(const Key('rate-RON')), findsNothing);
+    expect(requests, hasLength(2));
+  });
+
+  testWidgets('filters by type and combines type with search', (tester) async {
+    await _pumpScreen(tester);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('currency-type-filter')),
+        matching: find.text('Crypto'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('rate-BTC')), findsOneWidget);
+    expect(find.byKey(const Key('rate-USD')), findsNothing);
+    expect(find.byKey(const Key('rate-RON')), findsNothing);
+
+    await tester.enterText(find.byKey(const Key('current-rates-search')), 'a');
+    await tester.pumpAndSettle();
+    expect(find.text('No currencies match your search.'), findsOneWidget);
+    expect(find.byKey(const Key('rate-BTC')), findsNothing);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('currency-type-filter')),
+        matching: find.text('Fiat'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('rate-RON')), findsOneWidget);
+    expect(find.byKey(const Key('rate-USD')), findsOneWidget);
+    expect(find.byKey(const Key('rate-BTC')), findsNothing);
+  });
 }
 
 Widget _screen(RatesApiClient apiClient) {
@@ -234,8 +280,10 @@ Widget _screen(RatesApiClient apiClient) {
 Future<void> _pumpScreen(
   WidgetTester tester, {
   Map<String, dynamic>? snapshot,
+  List<String>? requests,
 }) async {
   final client = MockClient((request) async {
+    requests?.add(request.url.path);
     if (request.url.path.endsWith('/currencies')) {
       return _jsonResponse(_currenciesJson());
     }

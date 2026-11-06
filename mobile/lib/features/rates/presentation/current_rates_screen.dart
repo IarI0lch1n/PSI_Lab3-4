@@ -2,23 +2,38 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/rates_api_client.dart';
 import '../../../core/models/rate_models.dart';
+import '../../../core/presentation/currency_amount_formatter.dart';
+import '../../../core/presentation/currency_hub_widgets.dart';
 
 class CurrentRatesScreen extends StatefulWidget {
-  const CurrentRatesScreen({required this.apiClient, super.key});
+  const CurrentRatesScreen({
+    required this.apiClient,
+    super.key,
+    this.onNavigate,
+  });
 
   final RatesApiClient apiClient;
+  final ValueChanged<CurrencyHubDestination>? onNavigate;
 
   @override
   State<CurrentRatesScreen> createState() => _CurrentRatesScreenState();
 }
 
 class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
+  final _searchController = TextEditingController();
   _CurrentRatesState _state = const _LoadingRates();
+  CurrencyFilter _filter = CurrencyFilter.all;
 
   @override
   void initState() {
     super.initState();
     _loadRates();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRates() async {
@@ -54,112 +69,140 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
           })
           .toList(growable: false);
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _state = _LoadedRates(snapshot: snapshot, rows: rows);
       });
     } on Exception {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _state = const _FailedRates();
-      });
+      if (!mounted) return;
+      setState(() => _state = const _FailedRates());
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('CurrencyHub'),
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pushNamed('/analytics'),
-            icon: const Icon(Icons.insights_outlined),
-            tooltip: 'Analytics',
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).pushNamed('/all-currencies'),
-            icon: const Icon(Icons.table_chart_outlined),
-            tooltip: 'All currencies',
-          ),
-          TextButton.icon(
-            onPressed: () => Navigator.of(context).pushNamed('/converter'),
-            icon: const Icon(Icons.calculate_outlined),
-            label: const Text('Converter'),
-          ),
+  Widget build(BuildContext context) => CurrencyHubScaffold(
+    title: 'CurrencyHub',
+    destination: CurrencyHubDestination.currentRates,
+    onDestinationSelected: widget.onNavigate ?? (_) {},
+    body: _buildContent(context),
+  );
+
+  Widget _buildContent(BuildContext context) => switch (_state) {
+    _LoadingRates() => const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Loading current rates…'),
         ],
       ),
-      body: SafeArea(child: _buildContent(context)),
-    );
-  }
-
-  Widget _buildContent(BuildContext context) {
-    return switch (_state) {
-      _LoadingRates() => const Center(
+    ),
+    _FailedRates() => Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading current rates…'),
+            Text(
+              'Current rates are unavailable.',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: _loadRates, child: const Text('Retry')),
           ],
         ),
       ),
-      _FailedRates() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Current rates are unavailable.',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _loadRates, child: const Text('Retry')),
-            ],
+    ),
+    _LoadedRates(:final snapshot, :final rows) => _buildLoaded(
+      context,
+      snapshot,
+      rows,
+    ),
+  };
+
+  Widget _buildLoaded(
+    BuildContext context,
+    RateSnapshot snapshot,
+    List<_CurrentRateRow> rows,
+  ) {
+    final query = _searchController.text.trim().toLowerCase();
+    final visibleRows = rows
+        .where((row) {
+          final typeMatches = switch (_filter) {
+            CurrencyFilter.all => true,
+            CurrencyFilter.fiat => row.currency.type == CurrencyType.fiat,
+            CurrencyFilter.crypto => row.currency.type == CurrencyType.crypto,
+          };
+          final searchMatches =
+              query.isEmpty ||
+              row.currency.code.toLowerCase().contains(query) ||
+              row.currency.name.toLowerCase().contains(query);
+          return typeMatches && searchMatches;
+        })
+        .toList(growable: false);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        Text(
+          'Current Rates',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          key: const Key('current-rates-search'),
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            labelText: 'Search currencies',
+            hintText: 'Code or name',
+            prefixIcon: Icon(Icons.search),
           ),
         ),
-      ),
-      _LoadedRates(:final snapshot, :final rows) => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-        children: [
-          Text(
-            'Current Rates',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Snapshot collected',
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 4),
-                  SelectableText(snapshot.capturedAt),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Each rate has its own effective time.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
+        const SizedBox(height: 12),
+        CurrencyTypeFilter(
+          value: _filter,
+          onChanged: (value) => setState(() => _filter = value),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Snapshot collected',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 4),
+                SelectableText(snapshot.capturedAt),
+                const SizedBox(height: 4),
+                Text(
+                  'Each rate has its own effective time.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          for (final row in rows) _RateCard(row: row),
-        ],
-      ),
-    };
+        ),
+        const SizedBox(height: 8),
+        if (visibleRows.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 12),
+            child: Text(
+              'No currencies match your search.',
+              key: const Key('current-rates-no-match'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          )
+        else
+          for (final row in visibleRows) _RateCard(row: row),
+      ],
+    );
   }
 }
 
@@ -199,7 +242,7 @@ class _RateCard extends StatelessWidget {
     final theme = Theme.of(context);
     final rate = row.rate;
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      key: Key('rate-${row.currency.code}'),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -212,111 +255,39 @@ class _RateCard extends StatelessWidget {
               children: [
                 Text(row.currency.code, style: theme.textTheme.titleLarge),
                 Text(row.currency.name, style: theme.textTheme.titleMedium),
-                _InfoBadge(label: _currencyTypeLabel(row.currency.type)),
+                CurrencyTypeBadge(type: row.currency.type),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Text('Rate to MDL', style: theme.textTheme.labelLarge),
             SelectableText(
-              rate.normalizedRateToMdl,
+              CurrencyAmountFormatter.format(rate.normalizedRateToMdl),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 4),
-            Text('Nominal unit: ${rate.nominalUnit}'),
-            const SizedBox(height: 12),
-            _DetailLine(label: 'Provider', value: rate.providerName),
-            _DetailLine(
-              label: 'Provider type',
-              value: _currencyTypeLabel(rate.providerType),
-            ),
-            _DetailLine(label: 'Rate effective', value: rate.effectiveAt),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            FreshnessBadges(rate: rate),
+            ExpandableDetails(
               children: [
-                _InfoBadge(
-                  label: _freshnessLabel(rate.freshnessState),
-                  color: _freshnessColor(rate.freshnessState, theme),
+                ProvenanceLine(label: 'Provider', value: rate.providerName),
+                ProvenanceLine(
+                  label: 'Provider type',
+                  value: rate.providerType == CurrencyType.fiat
+                      ? 'Fiat'
+                      : 'Crypto',
                 ),
-                if (rate.isFallback) const _InfoBadge(label: 'Fallback used'),
-                if (rate.isStale)
-                  _InfoBadge(
-                    label: 'Stale',
-                    color: theme.colorScheme.errorContainer,
-                  ),
+                ProvenanceLine(
+                  label: 'Rate effective',
+                  value: rate.effectiveAt,
+                ),
+                ProvenanceLine(
+                  label: 'Nominal unit',
+                  value: rate.nominalUnit.toString(),
+                ),
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  String _currencyTypeLabel(CurrencyType type) => switch (type) {
-    CurrencyType.fiat => 'Fiat',
-    CurrencyType.crypto => 'Crypto',
-  };
-
-  String _freshnessLabel(FreshnessState state) => switch (state) {
-    FreshnessState.live => 'Live',
-    FreshnessState.fallback => 'Fallback',
-    FreshnessState.cached => 'Cached',
-  };
-
-  Color _freshnessColor(FreshnessState state, ThemeData theme) =>
-      switch (state) {
-        FreshnessState.live => theme.colorScheme.primaryContainer,
-        FreshnessState.fallback => theme.colorScheme.tertiaryContainer,
-        FreshnessState.cached => theme.colorScheme.secondaryContainer,
-      };
-}
-
-class _DetailLine extends StatelessWidget {
-  const _DetailLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Wrap(
-        spacing: 6,
-        children: [
-          Text('$label:', style: Theme.of(context).textTheme.labelLarge),
-          SelectableText(value),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoBadge extends StatelessWidget {
-  const _InfoBadge({required this.label, this.color});
-
-  final String label;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Semantics(
-      label: label,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: color ?? theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
         ),
       ),
     );
