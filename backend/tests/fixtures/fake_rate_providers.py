@@ -10,7 +10,14 @@ from app.domain.entities.currency import (
     SUPPORTED_FIAT_CURRENCIES,
 )
 from app.domain.enums.currency_type import CurrencyType
-from app.domain.interfaces.rate_provider import ProviderRate, RateProvider
+from app.domain.interfaces.rate_provider import (
+    HistoricalProviderQuote,
+    ProviderRate,
+    RateProvider,
+)
+
+
+HistoricalRate = ProviderRate | HistoricalProviderQuote
 
 
 FIXED_UTC_NOW = datetime(2026, 10, 28, 8, 0, tzinfo=UTC)
@@ -111,7 +118,7 @@ class FakeRateProvider(RateProvider):
         *,
         latest_rates: Sequence[ProviderRate] = (),
         latest_error: Exception | None = None,
-        historical_rates: Sequence[ProviderRate] = (),
+        historical_rates: Sequence[HistoricalRate] = (),
         historical_error: Exception | None = None,
         metadata: Mapping[str, str] | None = None,
         provider_name: str = "Fake Rate Provider",
@@ -145,7 +152,7 @@ class FakeRateProvider(RateProvider):
         currency_codes: Sequence[str],
         start_at: datetime,
         end_at: datetime,
-    ) -> Sequence[ProviderRate]:
+    ) -> Sequence[HistoricalRate]:
         self.historical_call_count += 1
         self.historical_requests.append(
             HistoricalRateRequest(tuple(currency_codes), start_at, end_at)
@@ -166,7 +173,7 @@ class FakeBnmRateProvider(FakeRateProvider):
         *,
         latest_rates: Sequence[ProviderRate] = (),
         latest_error: Exception | None = None,
-        historical_rates: Sequence[ProviderRate] = (),
+        historical_rates: Sequence[HistoricalRate] = (),
         historical_error: Exception | None = None,
         metadata: Mapping[str, str] | None = None,
     ) -> None:
@@ -190,7 +197,7 @@ class FakeCoinGeckoRateProvider(FakeRateProvider):
         *,
         latest_rates: Sequence[ProviderRate] = (),
         latest_error: Exception | None = None,
-        historical_rates: Sequence[ProviderRate] = (),
+        historical_rates: Sequence[HistoricalRate] = (),
         historical_error: Exception | None = None,
         metadata: Mapping[str, str] | None = None,
     ) -> None:

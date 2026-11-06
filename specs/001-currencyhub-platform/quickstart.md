@@ -1,94 +1,362 @@
-# Quickstart Validation Guide
+# CurrencyHub Quickstart and Validation Guide
 
-## Purpose
-
-This guide describes the minimum validation scenarios needed to confirm the product behavior described in the specification. It is not an implementation guide; it is a validation checklist for the product team and test engineers.
+This guide covers the local backend, Angular web client, Flutter Android
+client, and the acceptance scenarios used to check the shared experience.
+Automated tests use fake or mocked providers and must not contact live BNM or
+CoinGecko services.
 
 ## Prerequisites
 
-- Access to a working environment containing the web and mobile clients and the shared API backend.
-- A valid source of current rate data and a stored historical dataset.
-- A mechanism for simulating network interruption or provider failure.
-- Test data covering at least the required fiat and crypto currency set.
+- Windows with PowerShell, Git, and the repository checked out.
+- Python and the existing backend virtual environment at
+  `backend\.venv\Scripts\python.exe`.
+- Microsoft SQL Server reachable from the backend, an existing
+  `currencyhub` database, and Microsoft ODBC Driver 18 for SQL Server. The
+  checked-in connection template uses Windows integrated authentication;
+  SQL Server authentication can instead be configured locally without
+  committing credentials.
+- Node.js and npm compatible with the versions declared/configured by the
+  project, and the existing dependencies in `web\node_modules`.
+- Flutter/Dart and an Android Studio Android Emulator. `flutter doctor` can
+  report missing local Flutter/Android tooling.
 
-## Validation Scenarios
+## Backend setup and startup
 
-### 1. Open the app without sign-in
+Open PowerShell at the repository root:
 
-1. Launch the web or mobile application.
-2. Confirm the app opens without account creation or authentication.
-3. Verify that supported currencies are visible with rate information.
-4. Confirm the UI shows source and freshness metadata.
+```powershell
+Set-Location backend
+Copy-Item .env.example .env
+```
 
-Expected outcome: The user can access the essential conversion and rate information without onboarding.
+Edit only the local, ignored `backend\.env` for this machine. In particular,
+set `DATABASE_URL` to a SQLAlchemy `mssql+pyodbc` URL for the local SQL Server
+and database. The placeholder-safe Windows-auth template shape is:
 
-### 2. Classic conversion
+```text
+mssql+pyodbc:///?odbc_connect=DRIVER={ODBC+Driver+18+for+SQL+Server};SERVER=<server>;DATABASE=currencyhub;Trusted_Connection=yes;TrustServerCertificate=yes
+```
 
-1. Enter a valid numeric amount.
-2. Choose a source and target currency.
-3. Trigger conversion.
-4. Verify the result, rate date, and source are shown.
+Create the `currencyhub` database on the SQL Server instance before migrating.
+The configured identity needs permission to create/alter the schema and to
+read/write application data. Keep passwords and any real credentials in local
+configuration only.
 
-Expected outcome: Conversion succeeds and exposes the exact rate context used.
+The application settings load `.env` files. Alembic's
+`backend\alembic\env.py`, however, uses the process-level `DATABASE_URL`
+environment variable when it is set and otherwise its `alembic.ini` default.
+Before migration, set the current PowerShell process variable to the same
+connection URL as the local configuration (do not commit it):
 
-### 3. Validation failures
+```powershell
+$env:DATABASE_URL = '<your local SQLAlchemy connection URL>'
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
 
-1. Submit blank, zero, negative, and non-numeric inputs.
-2. Observe the conversion action and validation messages.
+Start the API from `backend`:
 
-Expected outcome: No conversion is produced and the user receives a clear explanation.
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
 
-### 4. Same-currency conversion
+The backend listens on port `8000`; `0.0.0.0` permits the Android Emulator to
+reach the host service. The configured local CORS origins permit Angular at
+`http://localhost:4200` and `http://127.0.0.1:4200`.
 
-1. Choose the same currency for source and target.
-2. Submit the conversion.
+Useful local API URLs:
 
-Expected outcome: The value returned matches the original amount exactly.
+- API root: `http://localhost:8000/`
+- OpenAPI documentation: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/api/v1/health`
+- Supported currencies: `http://localhost:8000/api/v1/currencies`
+- Latest rates: `http://localhost:8000/api/v1/rates/latest`
+- Conversion: `POST http://localhost:8000/api/v1/convert`
+- History: `GET http://localhost:8000/api/v1/history`
+- Analytics: `GET http://localhost:8000/api/v1/analytics`
+- Refresh: `POST http://localhost:8000/api/v1/rates/refresh`
 
-### 5. Multi-currency comparison
+The API adapters use the configured BNM and CoinGecko-compatible services
+when the real application is run. Do not use the live backend in automated
+tests; use the repository's fake providers instead.
 
-1. Open the all-currencies view.
-2. Enter a value in one currency field.
-3. Observe the recalculated values in all other visible currencies.
+## Angular web
 
-Expected outcome: Values are recalculated from one consistent snapshot and remain synchronized.
+In a second PowerShell window at the repository root:
 
-### 6. Cached and fallback data
+```powershell
+Set-Location web
+npm start
+```
 
-1. Simulate a rate-source failure or offline state.
-2. Confirm cached last-successful data appears with a stale or cached label.
-3. Simulate a missing weekend or holiday rate.
-4. Confirm the last valid previous rate is used and marked as fallback data.
+Open `http://localhost:4200`. The Angular API client defaults to
+`http://localhost:8000/api/v1`; the backend must be running and its configured
+CORS origins must include the web origin.
 
-Expected outcome: The app remains usable and clearly communicates freshness and fallback status.
+Run web validation without starting a browser manually:
 
-### 7. Analytics validation
+```powershell
+cmd /c npm test -- --watch=false
+cmd /c npm run build
+```
 
-1. Open the 7-day analytics view for a supported pair.
-2. Review the time series and summary values.
-3. Repeat for the 30-day view.
-4. Check trend labeling and summary calculations.
+## Flutter Android Emulator
 
-Expected outcome: Minimum, maximum, average, absolute change, percentage change, and trend are visible and directionally accurate.
+Ensure an Android Emulator is running and Flutter can see it:
 
-### 8. Empty-state behavior
+```powershell
+Set-Location mobile
+flutter doctor
+flutter devices
+```
 
-1. Select a pair with no history.
-2. Open the analytics screen.
+Run the app on the listed emulator device:
 
-Expected outcome: The screen displays a clear empty-state message instead of failing or showing misleading numbers.
+```powershell
+flutter run -d <emulator-device-id>
+```
 
-### 9. Restart continuity
+The Flutter API client defaults to `http://10.0.2.2:8000/api/v1`; `10.0.2.2`
+is the Android Emulator host-machine alias. Keep the backend bound to port
+`8000` as above. Flutter's native HTTP client does not use browser CORS.
 
-1. Load valid rate data.
-2. Restart the application with the network unavailable.
-3. Confirm the cached data remains visible.
+Run mobile validation:
 
-Expected outcome: Previously cached data remains usable after restart.
+```powershell
+flutter analyze
+flutter test
+dart format --output=none --set-exit-if-changed lib test
+```
 
-### 10. Shared product consistency
+## Runnable validation scenarios
 
-1. Validate the same scenario in the web app and the mobile app.
-2. Compare the essential features and data freshness labels.
+Use the fake/mock providers in automated tests. For interactive scenarios
+against a local backend, confirm the local provider/database setup is
+available before treating the returned rates as demonstration data.
 
-Expected outcome: Both clients provide the same essential behavior, with only layout differences by screen size and platform.
+1. **Open without sign-in**: Open the web app or Android app; confirm current
+   rates and per-currency source/freshness are available without account
+   creation.
+2. **Classic conversion**: Convert a positive amount between different
+   supported currencies; identify each rate leg's provider, effective time,
+   freshness, and fallback-used status.
+3. **Invalid input**: Try blank, zero, negative, and non-numeric amounts;
+   verify no result is produced and the user receives validation feedback.
+4. **Same-currency conversion**: Select the same source and target; verify the
+   original entered amount is preserved.
+5. **All-currencies comparison**: Enter an amount and change the input
+   currency; verify all visible values use one complete snapshot.
+6. **Analytics**: Review 7-day and 30-day pair summaries and point context;
+   verify empty history has an explicit empty state. Historical bootstrap
+   adds missing daily snapshots on rerun without replacing existing dates.
+7. **Offline/cache**: Persist a complete snapshot, simulate a provider/network
+   failure, and verify cached entries retain their original provider/effective
+   time and are not mislabeled as fallback.
+8. **Unavailable rates**: Remove a required entry or provide no usable
+   snapshot; verify the missing currency is identified and no complete
+   conversion/pair is shown.
+9. **Restart/rehydration**: Restart the client with the network unavailable;
+   verify the complete cached snapshot remains available and is not relabeled
+   live.
+10. **Refresh failure preservation**: Attempt an incomplete/failed refresh;
+    verify the previous complete snapshot remains unchanged.
+11. **Cross-client consistency**: Exercise equivalent data scenarios on web
+    and mobile; compare provider, effective time, freshness, stale, and
+    fallback-used metadata.
+
+The backend, Angular, and Flutter test suites cover these behaviors with fake
+or mocked data and do not call live providers.
+
+## Environment and security checks
+
+The checked-in `backend\.env.example` contains a local SQL Server connection
+template and explicitly named placeholder DB/provider credentials; it does
+not contain real DB credentials or provider keys. `backend\.env` and other
+`.env` files are ignored, with only `.env.example` allowed into version
+control. The tracked Angular and Flutter source scan found no database
+credentials or provider secrets. A tracked-text credential-pattern scan
+matched only configuration placeholders, provider configuration references,
+and test fixtures; no real secret was identified.
+
+The backend's default CORS allowlist is limited to the local Angular origins
+`http://localhost:4200` and `http://127.0.0.1:4200`; it does not use a wildcard
+and does not allow browser credentials. The app allows only `GET` and `POST`
+with `Accept` and `Content-Type` headers. Flutter's native HTTP client does
+not rely on CORS. Keep any custom local origins narrowly scoped.
+
+The configured product scope remains informational: the API route set covers
+currencies, rates, conversion, history, analytics, health, and refresh. It
+does not add accounts, authentication, transfers, wallets, portfolios, or
+financial transaction processing, as required by FR-026. These notes follow
+the configuration boundaries in the project specification and constitution.
+
+## Requirement mapping and acceptance record
+
+- **FR-001**: The app's current-rates entry points require no sign-in; use
+  scenarios 1 and 2 to inspect access and conversion.
+- **FR-022**: The shared API base paths and the web/emulator host URLs above
+  support equivalent essential capabilities; scenario 11 compares them.
+- **FR-023**: Run the mobile client in the Android Emulator at phone size and
+  check the rates, conversion, and analytics screens remain usable.
+- **SC-001**: Measure from when the converter screen is ready for input until
+  both the conversion result and its rate context are visible. The target is
+  under 30 seconds; record web and Flutter measurements separately. A
+  command-line test is not a substitute for this interactive timing.
+- **SC-012**: Scenario 11 checks equivalent provenance fields and shared
+  meanings across clients.
+
+### SC-001 interactive timing record
+
+- Web: **PASS — 0.20 seconds** in one browser-assisted run against a local
+  mock API. Timing began when the Amount field was ready, included entering
+  `25`, selecting USD to BTC, and submitting; it stopped after the result,
+  both providers, and both original effective timestamps were visible.
+- Flutter Android: **PASS — 14.97 seconds** on a Pixel 8 emulator running
+  Android 16 / API 36. Timing began when the Currency Converter screen was
+  fully ready for input. The user entered `25 CNY` and selected
+  CNY → GBP. Timing stopped only after the conversion result and both rate
+  contexts were visible: source CNY and target GBP each showed provider BNM,
+  an effective timestamp, and status Live.
+- SC-001 overall: **PASS**. Both interactive measurements were below the
+  30-second threshold.
+
+### T063 automated scenario and requirement record
+
+Final deterministic validation on 2026-11-06 passed: backend **401 passed**
+(one Starlette deprecation warning), Angular **88 passed** in 8 files and
+production build succeeded, and Flutter **84 passed**, analysis reported no
+issues, and formatting reported 18 files with no changes. Backend tests have
+an autouse HTTPX guard that rejects requests to BNM and CoinGecko domains;
+backend provider tests use `MockTransport` or fake providers. Web and Flutter
+widget tests use mocked API clients.
+
+| Requirements | Outcome and evidence |
+|---|---|
+| FR-003–FR-006 | Automated pass: conversion, invalid-input validation, same-currency handling, provenance, and unavailable-rate tests passed in backend and both clients. |
+| FR-007–FR-010 | Automated pass: all-currency calculations, per-entry provenance, and snapshot/effective-time distinctions passed in both clients. |
+| FR-011–FR-014 | Automated pass: refresh, 7/30-day analytics, pair provenance, and incomplete-point handling passed in backend and client suites. |
+| FR-015–FR-018 | Automated pass: outage/cache reuse, persistence and rehydration, unusable-cache handling, and unavailable states passed in both clients. |
+| FR-019–FR-021 | Automated pass: BNM fallback, source-aware staleness, and atomic replacement/preservation passed in backend and client suites. |
+| FR-022 | Automated pass: equivalent client contract and freshness-semantic tests passed. |
+| FR-023 | PASS: Flutter phone-sized widget usability tests passed and the Android phone-sized emulator was manually exercised. |
+| FR-024–FR-025 | Automated pass: client tests for plain-language freshness, provenance, and unavailable/error messages passed. |
+| SC-002–SC-004 | Automated pass: conversion consistency, invalid input, and same-currency result tests passed. |
+| SC-005–SC-006 | Automated pass: per-leg provenance and independent cached/fallback/stale rendering tests passed. |
+| SC-007 | Automated pass: 7/30-day analytics, mixed provenance, and empty-state tests passed. |
+| SC-008–SC-009 | Automated pass: outage/restart cache tests and distinct snapshot/effective-time/freshness tests passed. |
+| SC-010 | **PASS — 4/5 confirmed human scenarios**; see T065 below. |
+| SC-011–SC-012 | Automated pass: unavailable required-rate and cross-client semantic tests passed. |
+| SC-013–SC-015 | Automated pass: BNM fallback/publication-day and cryptocurrency 15-minute boundary tests passed. |
+| SC-016–SC-018 | Automated pass: cache usability, complete-snapshot replacement, and restart persistence tests passed. |
+
+Seven-day analytics was manually rechecked after the historical bootstrap
+fixes: `GET /api/v1/history?base_currency=EUR&quote_currency=USD&period=7d`
+returned `period=7d`, `empty=false`, and recent historical points. The
+Flutter Analytics screen was also checked with live history for EUR → BTC
+over 7 days; its data context showed BNM base providers, CoinGecko quote
+providers, 14 live entries, and 0 fallback entries. This confirms the prior
+empty-history acceptance defect was corrected.
+
+The historical bootstrap was manually run against the local development
+database. It added 29 missing historical snapshots while preserving the
+existing 2026-10-28 snapshot. The recent acceptance fixes incrementally fill
+missing history, normalize CoinGecko historical quotes through USD, and
+handle CoinGecko historical rate limits; these are committed in `e836112`,
+`ba42d43`, and `e8a69c2`.
+
+The five user-story independent tests pass: current-rate retrieval and
+provenance (US1), classic conversion (US2), same-snapshot all-currencies
+comparison (US3), historical analytics and pair provenance (US4), and
+complete-snapshot offline/restart behavior (US5). Deterministic suite
+coverage uses fake or mocked providers; the 7-day history API and live-data
+analytics screen were additionally verified manually after bootstrap.
+
+T063 outcome: **PASS**. SC-001 passed on web and Flutter Android; FR-003–
+FR-025 and SC-002–SC-018 are covered by the passing automated acceptance
+suites and the manual results recorded here. No automated test makes live
+requests to BNM or CoinGecko.
+
+### T064 API contract verification
+
+The published latest-rates entries, both conversion legs, and both legs of
+each history point expose `freshness_state`, `is_fallback`, and `is_stale`
+while preserving provider and effective time. Analytics and refresh
+freshness summaries report primary live/fallback/cached counts separately
+from stale and fallback-used counts. The backend schema and contract tests
+confirm these shapes; **34 focused backend contract/integration tests
+passed** (one existing Starlette deprecation warning). The verified
+endpoints, schema names, and test files are recorded in
+[`contracts/rates-api.md`](./contracts/rates-api.md).
+
+T064 outcome: **PASS** for FR-003, FR-013, FR-014, FR-019–FR-025 and
+SC-005–SC-009, SC-012–SC-018. SC-001 and SC-010 are now recorded as passing
+under T063 and T065 respectively.
+
+### T065 human participant results
+
+One real human participant unfamiliar with currency data reviewed the
+examples separately and was not given an explanation of provider or
+freshness labels beforehand.
+
+| # | Scenario | First-leg identification | Second-leg identification | Result |
+|---|---|---|---|---|
+| 1 | Converter, EUR → BTC | BNM — Live | CoinGecko — Live | PASS |
+| 2 | Converter, RON → BTC | BNM — Live | CoinGecko — Live | PASS |
+| 3 | Analytics, CHF → ETH, 7 days | BNM — Live | CoinGecko — Live | PASS |
+| 4 | Analytics, GBP → DOGE, 30 days | BNM — Live (recorded response) | CoinGecko — Live (recorded response) | UNVERIFIED / NOT COUNTED |
+| 5 | Converter, USD → USDT | BNM — Live | CoinGecko — Live | PASS |
+
+Scenario 4's supplied screenshot does not clearly match the recorded
+GBP → DOGE screen. Its recorded response is therefore not counted, and no
+screenshot evidence is inferred or fabricated. The other four scenarios
+were correctly identified, for a confirmed score of **4/5** against the
+threshold of at least 4/5.
+
+After the examples, the participant was asked what “Live” means and
+responded verbatim: “это что-то типа курс в данную секунду, или что-то типо
+того”. This is semantic evidence that the participant understood Live as a
+current/currently applicable rate; it is not rewritten as technical
+terminology. The reviewed screens used Live labels; this test does not claim
+that the participant reviewed Cached, Fallback, or Stale states.
+
+T065 / SC-010 outcome: **PASS — 4/5 confirmed human scenarios**.
+
+### T066 documented self-review
+
+Review date: 2026-11-06. Git history contains one project contributor, so this
+documented self-review is permitted by Constitution Principle IV.
+
+- **Specification and implementation consistency**: reviewed the canonical
+  freshness, snapshot, conversion, and analytics requirements against the
+  backend response schemas, client models, screens, and focused contract/cache
+  tests. API contract verification and the FR/SC mapping are recorded above.
+- **Acceptance criteria and test results**: backend **401/401**, Angular
+  **88/88** with production build successful, and Flutter **84/84** with
+  analysis clean and formatting unchanged. SC-001 is PASS (web 0.20 seconds,
+  Android 14.97 seconds); SC-010 is PASS (4/5 confirmed human scenarios).
+  T063, T064, and T065 pass, with evidence recorded above.
+- **Correctness**: backend conversion uses `Decimal`; review of client
+  feature code found no `Number`, `parseFloat`, `double`, or `num`
+  conversion path. The historical bootstrap now incrementally fills missing
+  snapshots, normalizes CoinGecko historical values through USD, and has
+  bounded CoinGecko 429 handling; focused provider/bootstrap tests and the
+  complete backend suite pass. Manual bootstrap added 29 missing snapshots
+  without replacing the existing 2026-10-28 snapshot, and 7-day API/UI
+  history was verified afterward.
+- **Safety**: T062's tracked-file/configuration review found no real secrets;
+  backend tests enforce a live BNM/CoinGecko HTTPX guard. The rate-limit
+  handling is bounded and tested. No new application code or dependencies
+  were added in this documentation-only acceptance update.
+- **Maintainability and scope**: the verified API schemas keep per-leg
+  provenance and separate freshness counts. The historical fixes retain
+  provider abstraction and focused fake-provider tests. This update changes
+  only the existing quickstart and task records; no unrelated formatting
+  changes were made. The product remains informational and within FR-026.
+- **Specification analysis**: the Spec Kit prerequisite script was blocked by
+  the machine's PowerShell execution policy; the policy was not changed.
+  Manual cross-artifact review found no CRITICAL inconsistencies and mapped
+  all 44 FR/SC identifiers to tasks. No extension hooks are configured.
+
+Review outcome: specification consistency, acceptance evidence, correctness,
+safety, maintainability, and scope review passed. T061–T066 are complete,
+and T001–T066 are complete. No blocking issue remains. **Ready for final
+handoff and merge.**

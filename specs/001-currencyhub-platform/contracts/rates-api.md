@@ -342,3 +342,22 @@ Query parameters:
 - The latest-rate response supports different providers and effective dates within the same snapshot because each rate entry carries independent metadata.
 - Pair conversions and historical pair points preserve provenance independently for both rate entries; analytics report aggregate provenance and freshness rather than one potentially misleading source state.
 - Empty-state responses are explicit for both history and analytics when the requested pair has no data in the selected window.
+
+## Contract verification record
+
+Verified 2026-11-01 against the backend response schemas and contract tests:
+
+- `GET /rates/latest` rate entries use `RateEntryResponse`; both conversion
+  legs use `ConversionRateLegResponse`; both history-point legs use
+  `HistoricalRateLegResponse`. Each schema exposes `freshness_state`,
+  `is_fallback`, and `is_stale`, while preserving `provider_name` and
+  `effective_at`.
+- Analytics `provenance_summary` and refresh `freshness_summary` each report
+  mutually exclusive `live`/`fallback`/`cached` primary counts separately
+  from `stale_entry_count` and `fallback_entry_count`.
+- Focused verification passed: 34 backend contract/integration tests across
+  `test_latest_rates_api.py`, `test_conversion_api.py`,
+  `test_analytics_api.py`, and `test_rate_refresh_resilience.py`.
+- This verifies the contract for FR-003, FR-013, FR-014, FR-019–FR-025 and
+  SC-005–SC-009, SC-012–SC-018. It does not substitute for the human review
+  required by SC-010.

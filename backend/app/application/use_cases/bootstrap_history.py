@@ -15,7 +15,11 @@ from app.domain.entities.rate_entry import RateEntry
 from app.domain.entities.rate_snapshot import RateSnapshot
 from app.domain.enums.currency_type import CurrencyType
 from app.domain.enums.freshness_state import FreshnessState
-from app.domain.interfaces.rate_provider import ProviderRate, RateProvider
+from app.domain.interfaces.rate_provider import (
+    HistoricalProviderQuote,
+    ProviderRate,
+    RateProvider,
+)
 from app.domain.interfaces.unit_of_work import UnitOfWork
 
 
@@ -33,7 +37,7 @@ class BootstrapHistoryError(ValueError):
 
 
 class BootstrapHistory:
-    """Persist up to 30 complete historical daily snapshots on first run."""
+    """Incrementally persist up to 30 complete historical daily snapshots."""
 
     def __init__(
         self,
@@ -49,7 +53,7 @@ class BootstrapHistory:
         self._snapshot_id_factory = snapshot_id_factory or uuid4
 
     async def execute(self) -> tuple[RateSnapshot, ...]:
-        """Bootstrap once, returning the snapshots persisted by this call."""
+        """Persist missing daily snapshots and return those added by this call."""
         end_at = self._aware_utc_now()
         end_date = end_at.astimezone(_MOLDOVA_TIMEZONE).date()
         start_date = end_date - timedelta(days=29)
@@ -64,14 +68,21 @@ class BootstrapHistory:
                 start_at,
                 end_at,
             )
-            if existing:
-                return ()
+            existing_dates = {
+                snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).date()
+                for snapshot in existing
+            }
 
             provider_rates = await self._fetch_history(start_at, end_at)
-            snapshots = self._build_snapshots(
-                provider_rates,
-                start_date,
-                end_date,
+            snapshots = tuple(
+                snapshot
+                for snapshot in self._build_snapshots(
+                    provider_rates,
+                    start_date,
+                    end_date,
+                )
+                if snapshot.captured_at.astimezone(_MOLDOVA_TIMEZONE).date()
+                not in existing_dates
             )
             for snapshot in snapshots:
                 uow.rate_repository.save_complete_snapshot(snapshot)
@@ -83,7 +94,7 @@ class BootstrapHistory:
         self,
         start_at: datetime,
         end_at: datetime,
-    ) -> tuple[ProviderRate, ...]:
+    ) -> tuple[ProviderRate | HistoricalProviderQuote, ...]:
         results = await asyncio.gather(
             *(
                 provider.fetch_historical_rates(
@@ -94,30 +105,34 @@ class BootstrapHistory:
                 for provider in self._providers
             )
         )
-        rates: list[ProviderRate] = []
+        rates: list[ProviderRate | HistoricalProviderQuote] = []
         for result in results:
             if isinstance(result, (str, bytes)) or not isinstance(result, Sequence):
                 raise BootstrapHistoryError(
-                    "Historical provider must return ProviderRate values."
+                    "Historical provider must return supported historical rate values."
                 )
-            if any(not isinstance(rate, ProviderRate) for rate in result):
+            if any(
+                not isinstance(rate, (ProviderRate, HistoricalProviderQuote))
+                for rate in result
+            ):
                 raise BootstrapHistoryError(
-                    "Historical provider returned a non-ProviderRate value."
+                    "Historical provider returned an unsupported rate value."
                 )
             rates.extend(result)
         return tuple(rates)
 
     def _build_snapshots(
         self,
-        rates: Sequence[ProviderRate],
+        rates: Sequence[ProviderRate | HistoricalProviderQuote],
         start_date: date,
         end_date: date,
     ) -> tuple[RateSnapshot, ...]:
+        normalized_rates = self._normalize_historical_quotes(rates)
         rates_by_code: dict[str, list[ProviderRate]] = {
             code: [] for code in _PROVIDER_CODES
         }
         seen: set[tuple[str, datetime]] = set()
-        for rate in rates:
+        for rate in normalized_rates:
             code = rate.currency.strip().upper()
             if code not in rates_by_code:
                 raise BootstrapHistoryError(
@@ -156,6 +171,65 @@ class BootstrapHistory:
                 )
             represented_date += timedelta(days=1)
         return tuple(snapshots)
+
+    def _normalize_historical_quotes(
+        self,
+        rates: Sequence[ProviderRate | HistoricalProviderQuote],
+    ) -> tuple[ProviderRate, ...]:
+        normalized_rates = [
+            rate for rate in rates if isinstance(rate, ProviderRate)
+        ]
+        usd_rates = [
+            rate
+            for rate in normalized_rates
+            if rate.currency.strip().upper() == "USD"
+            and rate.provider_type is CurrencyType.FIAT
+        ]
+
+        for quote in rates:
+            if not isinstance(quote, HistoricalProviderQuote):
+                continue
+            if not isinstance(quote.currency, str):
+                raise BootstrapHistoryError(
+                    "Historical crypto quotes must identify a supported currency."
+                )
+            currency = quote.currency.strip().upper()
+            if (
+                currency not in _CRYPTO_CODES
+                or quote.provider_type is not CurrencyType.CRYPTO
+                or not isinstance(quote.quote_currency, str)
+                or quote.quote_currency.strip().upper() != "USD"
+                or not isinstance(quote.quoted_price, Decimal)
+                or not quote.quoted_price.is_finite()
+                or quote.quoted_price <= 0
+            ):
+                raise BootstrapHistoryError(
+                    "Historical crypto quotes must be positive USD prices "
+                    "for supported currencies."
+                )
+
+            quote_date = self._local_date(quote.effective_at)
+            bridge_rates = [
+                rate
+                for rate in usd_rates
+                if self._local_date(rate.effective_at) <= quote_date
+            ]
+            if not bridge_rates:
+                continue
+            usd_rate = max(bridge_rates, key=lambda rate: rate.effective_at)
+            normalized_rates.append(
+                ProviderRate(
+                    currency=currency,
+                    normalized_rate_to_mdl=(
+                        quote.quoted_price * usd_rate.normalized_rate_to_mdl
+                    ),
+                    nominal_unit=1,
+                    provider_name=quote.provider_name,
+                    provider_type=quote.provider_type,
+                    effective_at=quote.effective_at,
+                )
+            )
+        return tuple(normalized_rates)
 
     def _build_snapshot(
         self,
