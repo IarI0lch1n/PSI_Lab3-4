@@ -1,0 +1,204 @@
+{
+  "@@locale": "ro",
+  "appName": "CurrencyHub",
+  "navCurrentRates": "Cursuri actuale",
+  "navAllCurrencies": "Toate valutele",
+  "navConverter": "Convertor",
+  "navAnalytics": "Analiză",
+  "language": "Limbă",
+  "languageEnglish": "English",
+  "languageRomanian": "Română",
+  "languageRussian": "Русский",
+  "languageSaveFailed": "Preferința de limbă nu a putut fi salvată.",
+  "filterAll": "Toate",
+  "filterFiat": "Fiat",
+  "filterCrypto": "Cripto",
+  "freshnessLive": "Actual",
+  "freshnessFallback": "Rezervă",
+  "freshnessCached": "Din cache",
+  "freshnessStale": "Expirat",
+  "fallbackUsed": "S-a folosit cursul de rezervă",
+  "showMore": "Arată mai mult",
+  "showLess": "Arată mai puțin",
+  "provider": "Furnizor",
+  "providerType": "Tipul furnizorului",
+  "rateEffective": "Curs valabil din",
+  "nominalUnit": "Unitate nominală",
+  "snapshot": "Instantaneu",
+  "snapshotCollected": "Date colectate la",
+  "eachRateEffectiveTime": "Fiecare curs are propria dată de valabilitate.",
+  "retry": "Reîncearcă",
+  "searchCurrencies": "Caută valute",
+  "searchCodeOrName": "Caută după cod sau nume",
+  "noSearchResults": "Nu s-au găsit valute.",
+  "clearSearch": "Șterge căutarea",
+  "currentRates": "Cursuri actuale",
+  "loadingCurrentRates": "Se încarcă cursurile actuale…",
+  "currentRatesUnavailable": "Cursurile actuale nu sunt disponibile.",
+  "noCurrenciesMatch": "Nicio valută nu corespunde căutării.",
+  "rateToMdl": "Curs în MDL",
+  "allCurrencies": "Toate valutele",
+  "compareCurrencies": "Compară valutele",
+  "comparisonDescription": "Compară valorile folosind același instantaneu validat.",
+  "amount": "Sumă",
+  "entryCurrency": "Valută de referință",
+  "selectEntryCurrency": "Selectează o valută acceptată.",
+  "loadingComparison": "Se încarcă comparația…",
+  "comparisonUnavailable": "Comparația nu este disponibilă. Este necesar un instantaneu complet al cursurilor.",
+  "rateDetailsOnEachResult": "Detaliile cursului sunt disponibile pentru fiecare rezultat.",
+  "noCurrenciesMatchFilter": "Nicio altă valută nu corespunde filtrului.",
+  "validPositiveAmount": "Introdu o sumă zecimală pozitivă validă.",
+  "amountGreaterThanZero": "Suma trebuie să fie mai mare decât zero.",
+  "currencyConverter": "Convertor valutar",
+  "convertOneAmount": "Convertește o sumă",
+  "latestValidatedSnapshot": "Se folosește cel mai recent instantaneu validat.",
+  "amountExample": "de ex. 123.45",
+  "from": "Din",
+  "to": "În",
+  "convert": "Convertește",
+  "converting": "Se convertește…",
+  "loadingCurrencies": "Se încarcă valutele acceptate…",
+  "noSupportedCurrencies": "Nu există valute acceptate disponibile.",
+  "supportedCurrenciesUnavailable": "Lista valutelor acceptate nu este disponibilă.",
+  "positiveDecimalAmount": "Introdu o sumă zecimală pozitivă.",
+  "conversionUnavailable": "Conversia nu este disponibilă momentan. Încearcă din nou mai târziu.",
+  "conversionFailed": "Conversia nu a putut fi efectuată. Încearcă din nou.",
+  "invalidConversionInput": "Introdu o sumă validă și selectează valute acceptate.",
+  "requiredRateUnavailable": "Cursul pentru {currency} nu este disponibil.",
+  "@requiredRateUnavailable": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredCurrencyRateUnavailable": "Cursul unei valute necesare nu este disponibil.",
+  "conversionResult": "Rezultatul conversiei",
+  "rateStatus": "Starea cursului",
+  "sourceCurrency": "{currency} sursă",
+  "@sourceCurrency": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "targetCurrency": "{currency} destinație",
+  "@targetCurrency": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "pairRateDescription": "Cursul perechii arată câte unități din valuta destinație valorează o unitate din valuta sursă.",
+  "rateContext": "Detalii curs {label} — {currency}",
+  "@rateContext": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "source": "Sursă",
+  "target": "Destinație",
+  "rateAnalytics": "Analiza cursurilor",
+  "historicalAnalytics": "Analiză istorică",
+  "analyticsDescription": "Explorează evoluția cursului și sursele datelor.",
+  "baseCurrency": "Valută de bază",
+  "quoteCurrency": "Valută cotată",
+  "sevenDays": "7 zile",
+  "thirtyDays": "30 de zile",
+  "loadingAnalytics": "Se încarcă analiza istorică…",
+  "analyticsUnavailable": "Analiza nu este disponibilă.",
+  "noHistoricalData": "Nu există date istorice pentru această pereche în perioada selectată.",
+  "rateHistory": "Istoricul cursului",
+  "selectedDay": "Zi selectată",
+  "base": "Bază",
+  "quote": "Cotare",
+  "minimum": "Minim",
+  "maximum": "Maxim",
+  "average": "Medie",
+  "absoluteChange": "Variație absolută",
+  "percentageChange": "Variație procentuală",
+  "trend": "Tendință",
+  "growth": "Creștere",
+  "decline": "Scădere",
+  "unchanged": "Neschimbat",
+  "dataContext": "Contextul datelor",
+  "baseProviders": "Furnizori pentru bază: {providers}",
+  "@baseProviders": {
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "quoteProviders": "Furnizori pentru cotare: {providers}",
+  "@quoteProviders": {
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCount": "Actuale: {count}",
+  "@liveCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fallbackCount": "De rezervă: {count}",
+  "@fallbackCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cachedCount": "Din cache: {count}",
+  "@cachedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "staleCount": "Expirate: {count}",
+  "@staleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fallbackUsedCount": "Cursuri de rezervă folosite: {count}",
+  "@fallbackUsedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "baseCurrencyContext": "Valută de bază — {currency}",
+  "@baseCurrencyContext": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "quoteCurrencyContext": "Valută cotată — {currency}",
+  "@quoteCurrencyContext": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  }
+}

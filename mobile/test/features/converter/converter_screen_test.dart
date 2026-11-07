@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/features/converter/presentation/converter_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -119,7 +120,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Convert'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Rate for BTC is unavailable.'), findsOneWidget);
+      expect(find.text('The rate for BTC is unavailable.'), findsOneWidget);
       expect(find.text('Conversion result'), findsNothing);
     },
   );
@@ -216,6 +217,7 @@ void main() {
       'not a currency',
     );
     await tester.pumpAndSettle();
+    expect(find.text('No matching currencies.'), findsOneWidget);
     expect(
       tester
           .widget<FilledButton>(find.widgetWithText(FilledButton, 'Convert'))
@@ -223,6 +225,30 @@ void main() {
       isNull,
     );
     expect(find.text('not a currency'), findsOneWidget);
+  });
+
+  testWidgets('keeps MDL available in the converter currency selector', (
+    tester,
+  ) async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/currencies')) {
+        return _jsonResponse(_currenciesJson());
+      }
+      return _jsonResponse(_conversionJson());
+    });
+    addTearDown(client.close);
+    await _pumpScreen(tester, client);
+
+    await tester.tap(find.byKey(const Key('currency-picker-from')));
+    await tester.enterText(
+      find.byKey(const Key('currency-picker-from')),
+      'MDL',
+    );
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'MDL'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ListTile, 'MDL'));
+    await tester.pumpAndSettle();
+    expect(find.text('MDL — Moldovan Leu'), findsOneWidget);
   });
 
   testWidgets('formats display values without changing the submitted amount', (
@@ -266,6 +292,9 @@ Future<void> _pumpScreen(WidgetTester tester, http.Client client) async {
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: ConverterScreen(apiClient: RatesApiClient(client: client)),
     ),
   );
@@ -316,6 +345,12 @@ Map<String, dynamic> _currenciesJson() {
         'code': 'BTC',
         'name': 'Bitcoin',
         'type': 'crypto',
+        'is_supported': true,
+      },
+      {
+        'code': 'MDL',
+        'name': 'Moldovan Leu',
+        'type': 'fiat',
         'is_supported': true,
       },
     ],

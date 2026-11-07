@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/features/rates/presentation/all_currencies_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -20,7 +21,7 @@ void main() {
     final response = Completer<http.Response>();
     await pumpScreen(tester, latest: () => response.future, settle: false);
     await tester.pump();
-    expect(find.text('Loading currency comparison...'), findsOneWidget);
+    expect(find.text('Loading currency comparison…'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     response.complete(jsonResponse(snapshot()));
     await tester.pumpAndSettle();
@@ -40,6 +41,7 @@ void main() {
       expect(find.widgetWithText(ListTile, 'EUR'), findsOneWidget);
       expect(find.widgetWithText(ListTile, 'USD'), findsOneWidget);
       expect(find.widgetWithText(ListTile, 'BTC'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'MDL'), findsOneWidget);
       expect(find.widgetWithText(ListTile, 'XXX'), findsNothing);
       await tester.tap(find.widgetWithText(ListTile, 'USD'));
       await tester.pumpAndSettle();
@@ -47,6 +49,7 @@ void main() {
       expect(find.byKey(const Key('comparison-USD')), findsNothing);
       expect(amount(tester, 'EUR'), '2.00');
       expect(amount(tester, 'BTC'), '0.50');
+      expect(amount(tester, 'MDL'), '4.00');
       await tester.enterText(
         find.byKey(const Key('comparison-amount')),
         '0.100000000000000001',
@@ -99,7 +102,7 @@ void main() {
       entry['is_stale'] = false;
     }
     await pumpScreen(tester, latest: () async => jsonResponse(data));
-    expect(find.text('Cached'), findsNWidgets(2));
+    expect(find.text('Cached'), findsNWidgets(3));
     expect(find.text('Fallback used'), findsNothing);
     expect(find.text('Stale'), findsNothing);
   });
@@ -268,6 +271,9 @@ Future<void> pumpScreen(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: AllCurrenciesScreen(apiClient: RatesApiClient(client: fake)),
     ),
   );
@@ -291,6 +297,7 @@ Map<String, dynamic> currencies() => {
       ('EUR', 'Euro', 'fiat'),
       ('USD', 'US Dollar', 'fiat'),
       ('BTC', 'Bitcoin', 'crypto'),
+      ('MDL', 'Moldovan Leu', 'fiat'),
       ('XXX', 'Unsupported', 'fiat'),
     ])
       {
@@ -309,6 +316,7 @@ Map<String, dynamic> snapshot() => {
       ('EUR', '2', 'live', fiatTime),
       ('USD', '4', 'fallback', fallbackTime),
       ('BTC', '8', 'cached', cryptoTime),
+      ('MDL', '1', 'live', fiatTime),
     ])
       {
         'currency': entry.$1,

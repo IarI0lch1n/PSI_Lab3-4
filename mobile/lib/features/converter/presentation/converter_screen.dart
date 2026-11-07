@@ -5,6 +5,7 @@ import '../../../core/models/rate_models.dart';
 import '../../../core/presentation/currency_amount_formatter.dart';
 import '../../../core/presentation/currency_hub_widgets.dart';
 import '../../../core/presentation/searchable_currency_picker.dart';
+import '../../../l10n/app_localizations.dart';
 
 class ConverterScreen extends StatefulWidget {
   const ConverterScreen({required this.apiClient, super.key, this.onNavigate});
@@ -60,30 +61,30 @@ class _ConverterScreenState extends State<ConverterScreen> {
         _currencies = supported;
         _isLoadingCurrencies = false;
         if (supported.isEmpty) {
-          _currencyError = 'No supported currencies are available.';
+          _currencyError = AppLocalizations.of(context)!.noSupportedCurrencies;
         }
       });
     } on Exception {
       if (!mounted) return;
       setState(() {
         _isLoadingCurrencies = false;
-        _currencyError = 'Supported currencies are unavailable.';
+        _currencyError = AppLocalizations.of(context)!
+            .supportedCurrenciesUnavailable;
       });
     }
   }
 
-  String? get _amountError => _validateAmount(_amountController.text);
-
-  bool get _canConvert =>
+  bool _canConvert(AppLocalizations l10n) =>
       !_isLoadingCurrencies &&
       _currencyError == null &&
-      _amountError == null &&
+      _validateAmount(_amountController.text, l10n) == null &&
       _sourceCurrency != null &&
       _targetCurrency != null &&
       !_isConverting;
 
   Future<void> _convert() async {
-    if (!_canConvert) return;
+    final l10n = AppLocalizations.of(context)!;
+    if (!_canConvert(l10n)) return;
 
     setState(() {
       _isConverting = true;
@@ -107,7 +108,7 @@ class _ConverterScreenState extends State<ConverterScreen> {
     } on Exception catch (error) {
       if (!mounted) return;
       setState(() {
-        _conversionError = _conversionErrorMessage(error);
+        _conversionError = _conversionErrorMessage(error, l10n);
         _isConverting = false;
       });
     }
@@ -138,38 +139,50 @@ class _ConverterScreenState extends State<ConverterScreen> {
     });
   }
 
-  String _conversionErrorMessage(Exception error) {
+  String _conversionErrorMessage(Exception error, AppLocalizations l10n) {
     if (error is! RatesApiException) {
-      return 'Conversion could not be completed. Please try again.';
+      return l10n.conversionFailed;
     }
     return switch (error.errorCode) {
-      'rate_unavailable' =>
-        error.safeMessage ?? 'A required currency rate is unavailable.',
-      'invalid_conversion_input' =>
-        'Enter a valid amount and select supported currencies.',
-      'conversion_unavailable' =>
-        'Conversion is currently unavailable. Try again later.',
-      _ => 'Conversion could not be completed. Please try again.',
+      'rate_unavailable' => _unavailableRateMessage(error, l10n),
+      'invalid_conversion_input' => l10n.invalidConversionInput,
+      'conversion_unavailable' => l10n.conversionUnavailable,
+      _ => l10n.conversionFailed,
     };
   }
 
-  @override
-  Widget build(BuildContext context) => CurrencyHubScaffold(
-    title: 'Currency Converter',
-    destination: CurrencyHubDestination.converter,
-    onDestinationSelected: widget.onNavigate ?? (_) {},
-    body: _buildContent(context),
-  );
+  String _unavailableRateMessage(
+    RatesApiException error,
+    AppLocalizations l10n,
+  ) {
+    final code = RegExp(r'\b([A-Z0-9]{2,6})\b')
+        .firstMatch(error.safeMessage ?? '')
+        ?.group(1);
+    return code == null
+        ? l10n.requiredCurrencyRateUnavailable
+        : l10n.requiredRateUnavailable(code);
+  }
 
-  Widget _buildContent(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return CurrencyHubScaffold(
+      title: l10n.currencyConverter,
+      destination: CurrencyHubDestination.converter,
+      onDestinationSelected: widget.onNavigate ?? (_) {},
+      body: _buildContent(context, l10n),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, AppLocalizations l10n) {
     if (_isLoadingCurrencies) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading supported currencies…'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l10n.loadingCurrencies),
           ],
         ),
       );
@@ -184,10 +197,7 @@ class _ConverterScreenState extends State<ConverterScreen> {
             children: [
               Text(error, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _loadCurrencies,
-                child: const Text('Retry'),
-              ),
+              FilledButton(onPressed: _loadCurrencies, child: Text(l10n.retry)),
             ],
           ),
         ),
@@ -198,9 +208,9 @@ class _ConverterScreenState extends State<ConverterScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        Text('Convert one amount', style: theme.textTheme.headlineMedium),
+        Text(l10n.convertOneAmount, style: theme.textTheme.headlineMedium),
         const SizedBox(height: 6),
-        const Text('Using the latest validated rate snapshot.'),
+        Text(l10n.latestValidatedSnapshot),
         const SizedBox(height: 18),
         TextField(
           key: const Key('converter-amount'),
@@ -208,9 +218,9 @@ class _ConverterScreenState extends State<ConverterScreen> {
           enabled: !_isConverting,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount',
-            hintText: 'e.g. 123.45',
-            errorText: _amountError,
+            labelText: l10n.amount,
+            hintText: l10n.amountExample,
+            errorText: _validateAmount(_amountController.text, l10n),
           ),
           onChanged: _onAmountChanged,
         ),
@@ -219,7 +229,8 @@ class _ConverterScreenState extends State<ConverterScreen> {
           key: const Key('converter-source'),
           currencies: _currencies,
           value: _sourceCurrency,
-          label: 'From',
+          label: l10n.from,
+          fieldId: 'from',
           enabled: !_isConverting,
           onChanged: (value) =>
               _onCurrencyChanged(source: value ?? '', clear: value == null),
@@ -229,14 +240,15 @@ class _ConverterScreenState extends State<ConverterScreen> {
           key: const Key('converter-target'),
           currencies: _currencies,
           value: _targetCurrency,
-          label: 'To',
+          label: l10n.to,
+          fieldId: 'to',
           enabled: !_isConverting,
           onChanged: (value) =>
               _onCurrencyChanged(target: value ?? '', clear: value == null),
         ),
         const SizedBox(height: 18),
         FilledButton.icon(
-          onPressed: _canConvert ? _convert : null,
+          onPressed: _canConvert(l10n) ? _convert : null,
           icon: _isConverting
               ? const SizedBox(
                   width: 18,
@@ -244,11 +256,11 @@ class _ConverterScreenState extends State<ConverterScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.currency_exchange),
-          label: Text(_isConverting ? 'Converting…' : 'Convert'),
+          label: Text(_isConverting ? l10n.converting : l10n.convert),
         ),
         if (_isConverting) ...[
           const SizedBox(height: 16),
-          const Center(child: Text('Converting…')),
+          Center(child: Text(l10n.converting)),
         ],
         if (_conversionError case final error?) ...[
           const SizedBox(height: 16),
@@ -262,14 +274,14 @@ class _ConverterScreenState extends State<ConverterScreen> {
     );
   }
 
-  String? _validateAmount(String value) {
+  String? _validateAmount(String value, AppLocalizations l10n) {
     final amount = value.trim();
-    if (amount.isEmpty) return 'Enter a positive decimal amount.';
+    if (amount.isEmpty) return l10n.positiveDecimalAmount;
     if (!RegExp(r'^(?:\d+(?:\.\d*)?|\.\d+)$').hasMatch(amount)) {
-      return 'Enter a valid positive decimal amount.';
+      return l10n.validPositiveAmount;
     }
     if (!RegExp(r'[1-9]').hasMatch(amount)) {
-      return 'Amount must be greater than zero.';
+      return l10n.amountGreaterThanZero;
     }
     return null;
   }
@@ -283,6 +295,7 @@ class _ConversionResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       key: const Key('conversion-result'),
       child: Padding(
@@ -290,7 +303,7 @@ class _ConversionResultCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Conversion result', style: theme.textTheme.titleLarge),
+            Text(l10n.conversionResult, style: theme.textTheme.titleLarge),
             const SizedBox(height: 12),
             Text(
               '${CurrencyAmountFormatter.format(result.sourceAmount)} ${result.sourceCurrency}',
@@ -319,37 +332,35 @@ class _ConversionResultCard extends StatelessWidget {
             if (result.sourceCurrency == result.targetCurrency)
               FreshnessBadges(
                 rate: result.rateContext.sourceRate,
-                prefix: 'Rate status',
+                prefix: l10n.rateStatus,
               )
             else ...[
               FreshnessBadges(
                 rate: result.rateContext.sourceRate,
-                prefix: 'Source ${result.sourceCurrency}',
+                prefix: l10n.sourceCurrency(result.sourceCurrency),
               ),
               const SizedBox(height: 6),
               FreshnessBadges(
                 rate: result.rateContext.targetRate,
-                prefix: 'Target ${result.targetCurrency}',
+                prefix: l10n.targetCurrency(result.targetCurrency),
               ),
             ],
             ExpandableDetails(
               children: [
                 ProvenanceLine(
-                  label: 'Snapshot',
+                  label: l10n.snapshot,
                   value: result.rateContext.snapshotId,
                 ),
                 _RateDetail(
                   rate: result.rateContext.sourceRate,
-                  label: 'Source',
+                  label: l10n.source,
                 ),
                 if (result.sourceCurrency != result.targetCurrency)
                   _RateDetail(
                     rate: result.rateContext.targetRate,
-                    label: 'Target',
+                    label: l10n.target,
                   ),
-                const Text(
-                  'Pair rate is target-currency units per one source-currency unit.',
-                ),
+                Text(l10n.pairRateDescription),
               ],
             ),
           ],
@@ -374,11 +385,17 @@ class _RateDetail extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$label rate context — ${rate.currency}',
+            AppLocalizations.of(context)!.rateContext(label, rate.currency),
             style: Theme.of(context).textTheme.titleSmall,
           ),
-          ProvenanceLine(label: 'Provider', value: rate.providerName),
-          ProvenanceLine(label: 'Rate effective', value: rate.effectiveAt),
+          ProvenanceLine(
+            label: AppLocalizations.of(context)!.provider,
+            value: rate.providerName,
+          ),
+          ProvenanceLine(
+            label: AppLocalizations.of(context)!.rateEffective,
+            value: rate.effectiveAt,
+          ),
           FreshnessBadges(rate: rate),
         ],
       ),

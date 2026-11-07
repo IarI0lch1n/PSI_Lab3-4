@@ -1,17 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'currency_hub_locale_controller.dart';
+import '../../l10n/app_localizations.dart';
 import '../models/rate_models.dart';
 
 enum CurrencyHubDestination {
-  currentRates('Current Rates', Icons.currency_exchange_outlined),
-  allCurrencies('All Currencies', Icons.table_chart_outlined),
-  converter('Converter', Icons.calculate_outlined),
-  analytics('Analytics', Icons.insights_outlined);
+  currentRates(Icons.currency_exchange_outlined),
+  allCurrencies(Icons.table_chart_outlined),
+  converter(Icons.calculate_outlined),
+  analytics(Icons.insights_outlined);
 
-  const CurrencyHubDestination(this.label, this.icon);
+  const CurrencyHubDestination(this.icon);
 
-  final String label;
   final IconData icon;
+
+  String label(AppLocalizations l10n) => switch (this) {
+    CurrencyHubDestination.currentRates => l10n.navCurrentRates,
+    CurrencyHubDestination.allCurrencies => l10n.navAllCurrencies,
+    CurrencyHubDestination.converter => l10n.navConverter,
+    CurrencyHubDestination.analytics => l10n.navAnalytics,
+  };
 }
 
 enum CurrencyFilter { all, fiat, crypto }
@@ -118,7 +128,7 @@ class CurrencyHubScaffold extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'CurrencyHub',
+                  AppLocalizations.of(context)!.appName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge,
@@ -131,12 +141,98 @@ class CurrencyHubScaffold extends StatelessWidget {
           NavigationDrawerDestination(
             icon: Icon(item.icon),
             selectedIcon: Icon(item.icon),
-            label: Text(item.label),
+            label: Text(item.label(AppLocalizations.of(context)!)),
           ),
+        const SizedBox(height: 24),
+        const CurrencyHubLanguageSelector(),
       ],
     ),
     body: SafeArea(child: body),
   );
+}
+
+class CurrencyHubLanguageSelector extends StatelessWidget {
+  const CurrencyHubLanguageSelector({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final activeLanguage = _languageName(
+      l10n,
+      Localizations.localeOf(context).languageCode,
+    );
+    final controller = CurrencyHubLocaleScope.maybeOf(context);
+
+    return ListTile(
+      key: const Key('language-selector'),
+      leading: const Icon(Icons.language),
+      title: Text(l10n.language),
+      trailing: PopupMenuButton<Locale>(
+        tooltip: l10n.language,
+        onSelected: (locale) {
+          if (controller != null) {
+            unawaited(_saveLocale(context, controller, locale));
+          }
+        },
+        itemBuilder: (context) => [
+          for (final locale in CurrencyHubLocaleController.supportedLocales)
+            PopupMenuItem(
+              value: locale,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(_languageName(l10n, locale.languageCode)),
+                  ),
+                  if (locale.languageCode ==
+                      Localizations.localeOf(context).languageCode)
+                    const Icon(Icons.check, size: 18),
+                ],
+              ),
+            ),
+        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(activeLanguage),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _languageName(AppLocalizations l10n, String languageCode) =>
+      switch (languageCode) {
+        'ro' => l10n.languageRomanian,
+        'ru' => l10n.languageRussian,
+        _ => l10n.languageEnglish,
+      };
+
+  Future<void> _saveLocale(
+    BuildContext context,
+    CurrencyHubLocaleController controller,
+    Locale locale,
+  ) async {
+    try {
+      await controller.setLocale(locale);
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'CurrencyHub localization',
+          context: ErrorDescription('while saving the selected language'),
+        ),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.languageSaveFailed),
+        ),
+      );
+    }
+  }
 }
 
 class CurrencyTypeFilter extends StatelessWidget {
@@ -150,17 +246,23 @@ class CurrencyTypeFilter extends StatelessWidget {
   final ValueChanged<CurrencyFilter> onChanged;
 
   @override
-  Widget build(BuildContext context) => SegmentedButton<CurrencyFilter>(
-    key: const Key('currency-type-filter'),
-    showSelectedIcon: false,
-    segments: const [
-      ButtonSegment(value: CurrencyFilter.all, label: Text('All')),
-      ButtonSegment(value: CurrencyFilter.fiat, label: Text('Fiat')),
-      ButtonSegment(value: CurrencyFilter.crypto, label: Text('Crypto')),
-    ],
-    selected: {value},
-    onSelectionChanged: (selection) => onChanged(selection.first),
-  );
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return SegmentedButton<CurrencyFilter>(
+      key: const Key('currency-type-filter'),
+      showSelectedIcon: false,
+      segments: [
+        ButtonSegment(value: CurrencyFilter.all, label: Text(l10n.filterAll)),
+        ButtonSegment(value: CurrencyFilter.fiat, label: Text(l10n.filterFiat)),
+        ButtonSegment(
+          value: CurrencyFilter.crypto,
+          label: Text(l10n.filterCrypto),
+        ),
+      ],
+      selected: {value},
+      onSelectionChanged: (selection) => onChanged(selection.first),
+    );
+  }
 }
 
 class CurrencyTypeBadge extends StatelessWidget {
@@ -174,8 +276,9 @@ class CurrencyTypeBadge extends StatelessWidget {
       CurrencyType.fiat => Theme.of(context).colorScheme.secondaryContainer,
       CurrencyType.crypto => Theme.of(context).colorScheme.tertiaryContainer,
     };
+    final l10n = AppLocalizations.of(context)!;
     return _StatusBadge(
-      label: type == CurrencyType.fiat ? 'Fiat' : 'Crypto',
+      label: type == CurrencyType.fiat ? l10n.filterFiat : l10n.filterCrypto,
       backgroundColor: color,
     );
   }
@@ -190,10 +293,17 @@ class FreshnessBadges extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final (label, color) = switch (rate.freshnessState) {
-      FreshnessState.live => ('Live', const Color(0xFFE1F2E7)),
-      FreshnessState.fallback => ('Fallback', const Color(0xFFFFEDC2)),
-      FreshnessState.cached => ('Cached', scheme.secondaryContainer),
+      FreshnessState.live => (l10n.freshnessLive, const Color(0xFFE1F2E7)),
+      FreshnessState.fallback => (
+        l10n.freshnessFallback,
+        const Color(0xFFFFEDC2),
+      ),
+      FreshnessState.cached => (
+        l10n.freshnessCached,
+        scheme.secondaryContainer,
+      ),
     };
 
     return Wrap(
@@ -205,13 +315,13 @@ class FreshnessBadges extends StatelessWidget {
           Text(prefix!, style: Theme.of(context).textTheme.labelMedium),
         _StatusBadge(label: label, backgroundColor: color),
         if (rate.isFallback)
-          const _StatusBadge(
-            label: 'Fallback used',
-            backgroundColor: Color(0xFFFFEDC2),
+          _StatusBadge(
+            label: l10n.fallbackUsed,
+            backgroundColor: const Color(0xFFFFEDC2),
           ),
         if (rate.isStale)
           _StatusBadge(
-            label: 'Stale',
+            label: l10n.freshnessStale,
             backgroundColor: scheme.errorContainer,
             foregroundColor: scheme.onErrorContainer,
           ),
@@ -224,13 +334,13 @@ class ExpandableDetails extends StatefulWidget {
   const ExpandableDetails({
     required this.children,
     super.key,
-    this.showMoreLabel = 'Show more',
-    this.showLessLabel = 'Show less',
+    this.showMoreLabel,
+    this.showLessLabel,
   });
 
   final List<Widget> children;
-  final String showMoreLabel;
-  final String showLessLabel;
+  final String? showMoreLabel;
+  final String? showLessLabel;
 
   @override
   State<ExpandableDetails> createState() => _ExpandableDetailsState();
@@ -240,22 +350,32 @@ class _ExpandableDetailsState extends State<ExpandableDetails> {
   bool _expanded = false;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      TextButton.icon(
-        key: const Key('expand-details'),
-        onPressed: () => setState(() => _expanded = !_expanded),
-        icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more, size: 20),
-        label: Text(_expanded ? widget.showLessLabel : widget.showMoreLabel),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          minimumSize: const Size(0, 40),
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextButton.icon(
+          key: const Key('expand-details'),
+          onPressed: () => setState(() => _expanded = !_expanded),
+          icon: Icon(
+            _expanded ? Icons.expand_less : Icons.expand_more,
+            size: 20,
+          ),
+          label: Text(
+            _expanded
+                ? widget.showLessLabel ?? l10n.showLess
+                : widget.showMoreLabel ?? l10n.showMore,
+          ),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            minimumSize: const Size(0, 40),
+          ),
         ),
-      ),
-      if (_expanded) ...widget.children,
-    ],
-  );
+        if (_expanded) ...widget.children,
+      ],
+    );
+  }
 }
 
 class ProvenanceLine extends StatelessWidget {

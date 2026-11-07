@@ -4,6 +4,7 @@ import '../../../core/api/rates_api_client.dart';
 import '../../../core/models/rate_models.dart';
 import '../../../core/presentation/currency_amount_formatter.dart';
 import '../../../core/presentation/currency_hub_widgets.dart';
+import '../../../l10n/app_localizations.dart';
 
 class CurrentRatesScreen extends StatefulWidget {
   const CurrentRatesScreen({
@@ -58,6 +59,7 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
       }
 
       final rows = snapshot.rates
+          .where((rate) => rate.currency != 'MDL')
           .map((rate) {
             final currency = currenciesByCode[rate.currency];
             if (currency == null) {
@@ -80,52 +82,58 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => CurrencyHubScaffold(
-    title: 'CurrencyHub',
-    destination: CurrencyHubDestination.currentRates,
-    onDestinationSelected: widget.onNavigate ?? (_) {},
-    body: _buildContent(context),
-  );
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return CurrencyHubScaffold(
+      title: l10n.appName,
+      destination: CurrencyHubDestination.currentRates,
+      onDestinationSelected: widget.onNavigate ?? (_) {},
+      body: _buildContent(context, l10n),
+    );
+  }
 
-  Widget _buildContent(BuildContext context) => switch (_state) {
-    _LoadingRates() => const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Loading current rates…'),
-        ],
-      ),
-    ),
-    _FailedRates() => Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Current rates are unavailable.',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _loadRates, child: const Text('Retry')),
-          ],
+  Widget _buildContent(BuildContext context, AppLocalizations l10n) =>
+      switch (_state) {
+        _LoadingRates() => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(l10n.loadingCurrentRates),
+            ],
+          ),
         ),
-      ),
-    ),
-    _LoadedRates(:final snapshot, :final rows) => _buildLoaded(
-      context,
-      snapshot,
-      rows,
-    ),
-  };
+        _FailedRates() => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.currentRatesUnavailable,
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton(onPressed: _loadRates, child: Text(l10n.retry)),
+              ],
+            ),
+          ),
+        ),
+        _LoadedRates(:final snapshot, :final rows) => _buildLoaded(
+          context,
+          snapshot,
+          rows,
+          l10n,
+        ),
+      };
 
   Widget _buildLoaded(
     BuildContext context,
     RateSnapshot snapshot,
     List<_CurrentRateRow> rows,
+    AppLocalizations l10n,
   ) {
     final query = _searchController.text.trim().toLowerCase();
     final visibleRows = rows
@@ -147,7 +155,7 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
         Text(
-          'Current Rates',
+          l10n.currentRates,
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 14),
@@ -155,10 +163,10 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
           key: const Key('current-rates-search'),
           controller: _searchController,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            labelText: 'Search currencies',
-            hintText: 'Code or name',
-            prefixIcon: Icon(Icons.search),
+          decoration: InputDecoration(
+            labelText: l10n.searchCurrencies,
+            hintText: l10n.searchCodeOrName,
+            prefixIcon: const Icon(Icons.search),
           ),
         ),
         const SizedBox(height: 12),
@@ -174,14 +182,14 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Snapshot collected',
+                  l10n.snapshotCollected,
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 4),
                 SelectableText(snapshot.capturedAt),
                 const SizedBox(height: 4),
                 Text(
-                  'Each rate has its own effective time.',
+                  l10n.eachRateEffectiveTime,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -193,7 +201,7 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 12),
             child: Text(
-              'No currencies match your search.',
+              l10n.noCurrenciesMatch,
               key: const Key('current-rates-no-match'),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge,
@@ -241,6 +249,7 @@ class _RateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final rate = row.rate;
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       key: Key('rate-${row.currency.code}'),
       child: Padding(
@@ -259,7 +268,7 @@ class _RateCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Text('Rate to MDL', style: theme.textTheme.labelLarge),
+            Text(l10n.rateToMdl, style: theme.textTheme.labelLarge),
             SelectableText(
               CurrencyAmountFormatter.format(rate.normalizedRateToMdl),
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -270,19 +279,19 @@ class _RateCard extends StatelessWidget {
             FreshnessBadges(rate: rate),
             ExpandableDetails(
               children: [
-                ProvenanceLine(label: 'Provider', value: rate.providerName),
+                ProvenanceLine(label: l10n.provider, value: rate.providerName),
                 ProvenanceLine(
-                  label: 'Provider type',
+                  label: l10n.providerType,
                   value: rate.providerType == CurrencyType.fiat
-                      ? 'Fiat'
-                      : 'Crypto',
+                      ? l10n.filterFiat
+                      : l10n.filterCrypto,
                 ),
                 ProvenanceLine(
-                  label: 'Rate effective',
+                  label: l10n.rateEffective,
                   value: rate.effectiveAt,
                 ),
                 ProvenanceLine(
-                  label: 'Nominal unit',
+                  label: l10n.nominalUnit,
                   value: rate.nominalUnit.toString(),
                 ),
               ],

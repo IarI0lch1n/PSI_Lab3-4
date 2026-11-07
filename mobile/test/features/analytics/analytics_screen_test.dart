@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/core/presentation/currency_hub_widgets.dart';
 import 'package:currencyhub_mobile/features/analytics/presentation/analytics_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -20,7 +21,7 @@ void main() {
       settle: false,
     );
     await tester.pump();
-    expect(find.text('Loading historical analytics...'), findsOneWidget);
+    expect(find.text('Loading historical analytics…'), findsOneWidget);
     expect(find.byKey(const Key('analytics-metrics')), findsNothing);
     pending.complete(jsonResponse(historyPayload()));
     await tester.pumpAndSettle();
@@ -97,6 +98,15 @@ void main() {
     expect(find.byKey(const Key('analytics-metrics')), findsOneWidget);
   });
 
+  testWidgets('keeps MDL available in analytics currency selectors', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await tester.tap(find.byKey(const Key('analytics-base')));
+    await tester.pumpAndSettle();
+    expect(find.text('MDL — Moldovan Leu'), findsOneWidget);
+  });
+
   testWidgets('shows an explicit empty state without metrics or point cards', (
     tester,
   ) async {
@@ -104,7 +114,7 @@ void main() {
 
     expect(
       find.text(
-        'No historical data available for this pair in the selected period.',
+        'No historical data is available for this pair in the selected period.',
       ),
       findsOneWidget,
     );
@@ -261,6 +271,9 @@ Future<void> pumpScreen(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: AnalyticsScreen(apiClient: RatesApiClient(client: fake)),
     ),
   );
@@ -290,6 +303,12 @@ Map<String, dynamic> currenciesPayload() => {
   'currencies': [
     {'code': 'EUR', 'name': 'Euro', 'type': 'fiat', 'is_supported': true},
     {'code': 'USD', 'name': 'US Dollar', 'type': 'fiat', 'is_supported': true},
+    {
+      'code': 'MDL',
+      'name': 'Moldovan Leu',
+      'type': 'fiat',
+      'is_supported': true,
+    },
     {'code': 'BTC', 'name': 'Bitcoin', 'type': 'crypto', 'is_supported': true},
     {
       'code': 'XXX',

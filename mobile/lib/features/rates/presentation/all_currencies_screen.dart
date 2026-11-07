@@ -5,6 +5,7 @@ import '../../../core/models/rate_models.dart';
 import '../../../core/presentation/currency_amount_formatter.dart';
 import '../../../core/presentation/currency_hub_widgets.dart';
 import '../../../core/presentation/searchable_currency_picker.dart';
+import '../../../l10n/app_localizations.dart';
 import '../domain/all_currencies_calculator.dart';
 
 class AllCurrenciesScreen extends StatefulWidget {
@@ -111,34 +112,37 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
     );
   }
 
-  String? get _amountError {
+  String? _amountError(AppLocalizations l10n) {
     final value = _amount.text.trim();
     if (!RegExp(r'^(?:\d+(?:\.\d*)?|\.\d+)$').hasMatch(value)) {
-      return 'Enter a valid positive decimal amount.';
+      return l10n.validPositiveAmount;
     }
     if (!RegExp(r'[1-9]').hasMatch(value)) {
-      return 'Amount must be greater than zero.';
+      return l10n.amountGreaterThanZero;
     }
     return null;
   }
 
   @override
-  Widget build(BuildContext context) => CurrencyHubScaffold(
-    title: 'All Currencies',
-    destination: CurrencyHubDestination.allCurrencies,
-    onDestinationSelected: widget.onNavigate ?? (_) {},
-    body: _content(context),
-  );
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return CurrencyHubScaffold(
+      title: l10n.allCurrencies,
+      destination: CurrencyHubDestination.allCurrencies,
+      onDestinationSelected: widget.onNavigate ?? (_) {},
+      body: _content(context, l10n),
+    );
+  }
 
-  Widget _content(BuildContext context) {
+  Widget _content(BuildContext context, AppLocalizations l10n) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading currency comparison...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l10n.loadingComparison),
           ],
         ),
       );
@@ -150,12 +154,9 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Comparison is unavailable. A complete rate snapshot is required.',
-                textAlign: TextAlign.center,
-              ),
+              Text(l10n.comparisonUnavailable, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _load, child: const Text('Retry')),
+              FilledButton(onPressed: _load, child: Text(l10n.retry)),
             ],
           ),
         ),
@@ -163,7 +164,8 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
     }
 
     final snapshot = _snapshot!;
-    final values = _amountError == null && _source != null
+    final amountError = _amountError(l10n);
+    final values = amountError == null && _source != null
         ? _calculator.calculate(
             amount: _amount.text,
             sourceCurrency: _source!,
@@ -187,19 +189,19 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
         Text(
-          'Compare currencies',
+          l10n.compareCurrencies,
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 4),
-        const Text('All values use the same validated rate snapshot.'),
+        Text(l10n.comparisonDescription),
         const SizedBox(height: 16),
         TextField(
           key: const Key('comparison-amount'),
           controller: _amount,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount',
-            errorText: _amountError,
+            labelText: l10n.amount,
+            errorText: amountError,
           ),
           onChanged: (_) => setState(() {}),
         ),
@@ -208,14 +210,15 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
           key: const Key('comparison-source'),
           currencies: _currencies,
           value: _source,
-          label: 'Entry currency',
+          label: l10n.entryCurrency,
+          fieldId: 'entry-currency',
           onChanged: (value) => setState(() => _source = value),
         ),
         if (_source == null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'Select a supported entry currency.',
+              l10n.selectEntryCurrency,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
@@ -232,23 +235,23 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Snapshot collected',
+                  l10n.snapshotCollected,
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 4),
                 SelectableText(snapshot.capturedAt),
                 const SizedBox(height: 4),
-                const Text('Rate details remain available on each result.'),
+                Text(l10n.rateDetailsOnEachResult),
               ],
             ),
           ),
         ),
         const SizedBox(height: 8),
-        if (_amountError == null && _source != null && visibleValues.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 28),
+        if (amountError == null && _source != null && visibleValues.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 28),
             child: Text(
-              'No other currencies match this filter.',
+              l10n.noCurrenciesMatchFilter,
               textAlign: TextAlign.center,
             ),
           ),
@@ -276,6 +279,7 @@ class _ComparisonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rate = value.currency;
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -306,9 +310,9 @@ class _ComparisonCard extends StatelessWidget {
             FreshnessBadges(rate: rate),
             ExpandableDetails(
               children: [
-                ProvenanceLine(label: 'Provider', value: rate.providerName),
+                ProvenanceLine(label: l10n.provider, value: rate.providerName),
                 ProvenanceLine(
-                  label: 'Rate effective',
+                  label: l10n.rateEffective,
                   value: rate.effectiveAt,
                 ),
               ],

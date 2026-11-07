@@ -5,6 +5,7 @@ import '../../../core/api/rates_api_client.dart';
 import '../../../core/models/rate_models.dart';
 import '../../../core/presentation/currency_amount_formatter.dart';
 import '../../../core/presentation/currency_hub_widgets.dart';
+import '../../../l10n/app_localizations.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({required this.apiClient, super.key, this.onNavigate});
@@ -201,36 +202,39 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => CurrencyHubScaffold(
-    title: 'Rate Analytics',
-    destination: CurrencyHubDestination.analytics,
-    onDestinationSelected: widget.onNavigate ?? (_) {},
-    body: ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      children: [
-        Text(
-          'Historical Analytics',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        const SizedBox(height: 4),
-        const Text('Explore the movement and source of each rate.'),
-        if (_currencies.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _controls(),
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return CurrencyHubScaffold(
+      title: l10n.rateAnalytics,
+      destination: CurrencyHubDestination.analytics,
+      onDestinationSelected: widget.onNavigate ?? (_) {},
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          Text(
+            l10n.historicalAnalytics,
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(l10n.analyticsDescription),
+          if (_currencies.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _controls(l10n),
+          ],
+          const SizedBox(height: 14),
+          _content(l10n),
         ],
-        const SizedBox(height: 14),
-        _content(),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 
-  Widget _controls() => Column(
+  Widget _controls(AppLocalizations l10n) => Column(
     children: [
       DropdownButtonFormField<String>(
         key: const Key('analytics-base'),
         initialValue: _base,
         isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Base currency'),
+        decoration: InputDecoration(labelText: l10n.baseCurrency),
         items: _currencyItems(),
         onChanged: (value) {
           if (value == null || value == _base) return;
@@ -243,7 +247,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         key: const Key('analytics-quote'),
         initialValue: _quote,
         isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Quote currency'),
+        decoration: InputDecoration(labelText: l10n.quoteCurrency),
         items: _currencyItems(),
         onChanged: (value) {
           if (value == null || value == _quote) return;
@@ -254,14 +258,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       const SizedBox(height: 12),
       SegmentedButton<AnalyticsPeriod>(
         key: const Key('analytics-period'),
-        segments: const [
+        segments: [
           ButtonSegment(
             value: AnalyticsPeriod.sevenDays,
-            label: Text('7 days'),
+            label: Text(l10n.sevenDays),
           ),
           ButtonSegment(
             value: AnalyticsPeriod.thirtyDays,
-            label: Text('30 days'),
+            label: Text(l10n.thirtyDays),
           ),
         ],
         selected: {_period},
@@ -278,15 +282,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       ),
   ];
 
-  Widget _content() {
+  Widget _content(AppLocalizations l10n) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('Loading historical analytics...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(l10n.loadingAnalytics),
           ],
         ),
       );
@@ -296,11 +300,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Analytics are unavailable.'),
+            Text(l10n.analyticsUnavailable),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _currencies.isEmpty ? _loadCurrencies : _loadAnalytics,
-              child: const Text('Retry'),
+              child: Text(l10n.retry),
             ),
           ],
         ),
@@ -309,10 +313,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final history = _history!;
     final analytics = _analytics!;
     if (history.empty) {
-      return Text(
-        history.message ?? 'No historical data available for this pair in the selected period.',
-        key: const Key('analytics-empty'),
-      );
+      return Text(l10n.noHistoricalData, key: const Key('analytics-empty'));
     }
 
     final selectedPoint = history.points[_selectedPointIndex];
@@ -348,6 +349,7 @@ class _HistoryChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final values = points.map((point) => Decimal.parse(point.value)).toList();
     final maximum = values.reduce((a, b) => a > b ? a : b);
     return Card(
@@ -358,7 +360,7 @@ class _HistoryChart extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Rate history',
+              l10n.rateHistory,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 10),
@@ -487,6 +489,7 @@ class _SelectedPointCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final source = point.rateContext.sourceRate;
     final target = point.rateContext.targetRate;
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       key: const Key('analytics-selected-point'),
       child: Padding(
@@ -494,7 +497,10 @@ class _SelectedPointCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Selected day', style: Theme.of(context).textTheme.labelLarge),
+            Text(
+              l10n.selectedDay,
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
             Text(point.date, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 4),
             SelectableText(
@@ -506,12 +512,12 @@ class _SelectedPointCard extends StatelessWidget {
               ),
             ),
             const Divider(height: 24),
-            _RateContextDetails(label: 'Base', rate: source),
+            _RateContextDetails(label: l10n.base, rate: source),
             const SizedBox(height: 12),
-            _RateContextDetails(label: 'Quote', rate: target),
+            _RateContextDetails(label: l10n.quote, rate: target),
             const SizedBox(height: 10),
             ProvenanceLine(
-              label: 'Snapshot',
+              label: l10n.snapshot,
               value: point.rateContext.snapshotId,
             ),
           ],
@@ -528,18 +534,21 @@ class _RateContextDetails extends StatelessWidget {
   final RateProvenance rate;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        '$label currency — ${rate.currency}',
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
-      ProvenanceLine(label: 'Provider', value: rate.providerName),
-      ProvenanceLine(label: 'Rate effective', value: rate.effectiveAt),
-      FreshnessBadges(rate: rate),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final title = label == l10n.base
+        ? l10n.baseCurrencyContext(rate.currency)
+        : l10n.quoteCurrencyContext(rate.currency);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleSmall),
+        ProvenanceLine(label: l10n.provider, value: rate.providerName),
+        ProvenanceLine(label: l10n.rateEffective, value: rate.effectiveAt),
+        FreshnessBadges(rate: rate),
+      ],
+    );
+  }
 }
 
 class _MetricsCard extends StatelessWidget {
@@ -548,31 +557,39 @@ class _MetricsCard extends StatelessWidget {
   final AnalyticsResponse analytics;
 
   @override
-  Widget build(BuildContext context) => Card(
-    key: const Key('analytics-metrics'),
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _Metric('Minimum', analytics.minimum!),
-          _Metric('Maximum', analytics.maximum!),
-          _Metric('Average', analytics.average!),
-          _Metric('Change', analytics.absoluteChange!),
-          _Metric('Change %', '${analytics.percentageChange!}%'),
-          _Metric('Trend', _trendLabel(analytics.trend!)),
-        ],
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Card(
+      key: const Key('analytics-metrics'),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _Metric(l10n.minimum, analytics.minimum!),
+            _Metric(l10n.maximum, analytics.maximum!),
+            _Metric(l10n.average, analytics.average!),
+            _Metric(l10n.absoluteChange, analytics.absoluteChange!),
+            _Metric(l10n.percentageChange, '${analytics.percentageChange!}%'),
+            _Metric(
+              l10n.trend,
+              _trendLabel(analytics.trend!, l10n),
+              isTrend: true,
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric(this.label, this.value);
+  const _Metric(this.label, this.value, {this.isTrend = false});
 
   final String label;
   final String value;
+  final bool isTrend;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -582,19 +599,16 @@ class _Metric extends StatelessWidget {
       children: [
         Text(label, style: Theme.of(context).textTheme.labelMedium),
         SelectableText(
-          value.endsWith('%')
-              ? '${CurrencyAmountFormatter.format(value.substring(0, value.length - 1))}%'
-              : _isTrend(value)
+          isTrend
               ? value
+              : value.endsWith('%')
+              ? '${CurrencyAmountFormatter.format(value.substring(0, value.length - 1))}%'
               : CurrencyAmountFormatter.format(value),
           style: Theme.of(context).textTheme.titleSmall,
         ),
       ],
     ),
   );
-
-  bool _isTrend(String value) =>
-      value == 'Growth' || value == 'Decline' || value == 'Unchanged';
 }
 
 class _ProvenanceCard extends StatelessWidget {
@@ -605,6 +619,7 @@ class _ProvenanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final counts = summary.rateEntryFreshnessCounts;
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       key: const Key('analytics-provenance'),
       child: Padding(
@@ -613,21 +628,21 @@ class _ProvenanceCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Data context',
+              l10n.dataContext,
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            Text('Base: ${summary.sourceProviders.join(', ')}'),
-            Text('Quote: ${summary.targetProviders.join(', ')}'),
+            Text(l10n.baseProviders(summary.sourceProviders.join(', '))),
+            Text(l10n.quoteProviders(summary.targetProviders.join(', '))),
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
-                _CountChip('Live', counts.live),
-                _CountChip('Fallback', counts.fallback),
-                _CountChip('Cached', counts.cached),
-                _CountChip('Stale', summary.staleEntryCount),
-                _CountChip('Fallback used', summary.fallbackEntryCount),
+                _CountChip(l10n.liveCount(counts.live)),
+                _CountChip(l10n.fallbackCount(counts.fallback)),
+                _CountChip(l10n.cachedCount(counts.cached)),
+                _CountChip(l10n.staleCount(summary.staleEntryCount)),
+                _CountChip(l10n.fallbackUsedCount(summary.fallbackEntryCount)),
               ],
             ),
           ],
@@ -638,18 +653,18 @@ class _ProvenanceCard extends StatelessWidget {
 }
 
 class _CountChip extends StatelessWidget {
-  const _CountChip(this.label, this.count);
+  const _CountChip(this.label);
 
   final String label;
-  final int count;
 
   @override
   Widget build(BuildContext context) =>
-      Chip(visualDensity: VisualDensity.compact, label: Text('$label: $count'));
+      Chip(visualDensity: VisualDensity.compact, label: Text(label));
 }
 
-String _trendLabel(AnalyticsTrend trend) => switch (trend) {
-  AnalyticsTrend.growth => 'Growth',
-  AnalyticsTrend.decline => 'Decline',
-  AnalyticsTrend.unchanged => 'Unchanged',
-};
+String _trendLabel(AnalyticsTrend trend, AppLocalizations l10n) =>
+    switch (trend) {
+      AnalyticsTrend.growth => l10n.growth,
+      AnalyticsTrend.decline => l10n.decline,
+      AnalyticsTrend.unchanged => l10n.unchanged,
+    };

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/features/rates/presentation/current_rates_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -73,6 +74,38 @@ void main() {
     expect(_textIn(usdCard), contains('BNM'));
     expect(_textIn(usdCard), contains(_usdEffectiveAt));
     expect(_textIn(usdCard), contains('Show less'));
+  });
+
+  testWidgets('excludes MDL while keeping other current rates visible', (
+    tester,
+  ) async {
+    await _pumpScreen(tester);
+
+    expect(find.byKey(const Key('rate-MDL')), findsNothing);
+    expect(find.byKey(const Key('rate-USD')), findsOneWidget);
+    expect(find.byKey(const Key('rate-RON')), findsOneWidget);
+    expect(find.byKey(const Key('rate-BTC')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('current-rates-search')),
+      'mdl',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('rate-MDL')), findsNothing);
+    expect(find.text('No currencies match your search.'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('current-rates-search')), '');
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('currency-type-filter')),
+        matching: find.text('Fiat'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('rate-MDL')), findsNothing);
+    expect(find.byKey(const Key('rate-USD')), findsOneWidget);
+    expect(find.byKey(const Key('rate-RON')), findsOneWidget);
+    expect(find.byKey(const Key('rate-BTC')), findsNothing);
   });
 
   testWidgets('shows snapshot collection separately from original rate times', (
@@ -274,7 +307,12 @@ void main() {
 }
 
 Widget _screen(RatesApiClient apiClient) {
-  return MaterialApp(home: CurrentRatesScreen(apiClient: apiClient));
+  return MaterialApp(
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: CurrentRatesScreen(apiClient: apiClient),
+  );
 }
 
 Future<void> _pumpScreen(
@@ -350,6 +388,12 @@ Map<String, dynamic> _currenciesJson() {
         'is_supported': true,
       },
       {
+        'code': 'MDL',
+        'name': 'Moldovan Leu',
+        'type': 'fiat',
+        'is_supported': true,
+      },
+      {
         'code': 'RON',
         'name': 'Romanian Leu',
         'type': 'fiat',
@@ -379,6 +423,16 @@ Map<String, dynamic> _snapshotJson() {
         isFallback: false,
         isStale: false,
         normalizedRate: '17.400000000000000001',
+      ),
+      _rateJson(
+        currency: 'MDL',
+        providerName: 'BNM',
+        providerType: 'fiat',
+        effectiveAt: _usdEffectiveAt,
+        freshnessState: 'live',
+        isFallback: false,
+        isStale: false,
+        normalizedRate: '1',
       ),
       _rateJson(
         currency: 'RON',

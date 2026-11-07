@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/core/presentation/currency_hub_navigation.dart';
 import 'package:currencyhub_mobile/core/presentation/currency_hub_widgets.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -17,17 +18,23 @@ void main() {
     final apiClient = RatesApiClient(client: client);
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: CurrencyHubTheme.light,
         home: CurrencyHubNavigationShell(apiClient: apiClient),
       ),
     );
     await tester.pumpAndSettle();
 
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(CurrencyHubNavigationShell)),
+    )!;
     expect(find.text('Current Rates'), findsOneWidget);
     await _openDrawer(tester);
     expect(find.byType(NavigationDrawerDestination), findsNWidgets(4));
     for (final destination in CurrencyHubDestination.values) {
-      expect(find.text(destination.label), findsWidgets);
+      expect(find.text(destination.label(l10n)), findsWidgets);
       expect(find.byIcon(destination.icon), findsWidgets);
     }
 
