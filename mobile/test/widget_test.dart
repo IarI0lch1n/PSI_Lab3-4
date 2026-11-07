@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/features/rates/presentation/current_rates_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 
 void main() {
   testWidgets('builds the current-rates screen and shows its heading', (
@@ -53,7 +54,12 @@ void main() {
     addTearDown(apiClient.client.close);
 
     await tester.pumpWidget(
-      MaterialApp(home: CurrentRatesScreen(apiClient: apiClient)),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: CurrentRatesScreen(apiClient: apiClient),
+      ),
     );
     await tester.pumpAndSettle();
 

@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/rates_api_client.dart';
 import '../../../core/models/rate_models.dart';
+import '../../../core/presentation/currency_amount_formatter.dart';
+import '../../../core/presentation/currency_hub_widgets.dart';
+import '../../../core/presentation/searchable_currency_picker.dart';
+import '../../../l10n/app_localizations.dart';
 
 class ConverterScreen extends StatefulWidget {
-  const ConverterScreen({required this.apiClient, super.key});
+  const ConverterScreen({required this.apiClient, super.key, this.onNavigate});
 
   final RatesApiClient apiClient;
+  final ValueChanged<CurrencyHubDestination>? onNavigate;
 
   @override
   State<ConverterScreen> createState() => _ConverterScreenState();
@@ -51,41 +56,35 @@ class _ConverterScreenState extends State<ConverterScreen> {
       final supported = response.currencies
           .where((currency) => currency.isSupported)
           .toList(growable: false);
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _currencies = supported;
         _isLoadingCurrencies = false;
         if (supported.isEmpty) {
-          _currencyError = 'No supported currencies are available.';
+          _currencyError = AppLocalizations.of(context)!.noSupportedCurrencies;
         }
       });
     } on Exception {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _isLoadingCurrencies = false;
-        _currencyError = 'Supported currencies are unavailable.';
+        _currencyError = AppLocalizations.of(context)!
+            .supportedCurrenciesUnavailable;
       });
     }
   }
 
-  String? get _amountError => _validateAmount(_amountController.text);
-
-  bool get _canConvert =>
+  bool _canConvert(AppLocalizations l10n) =>
       !_isLoadingCurrencies &&
       _currencyError == null &&
-      _amountError == null &&
+      _validateAmount(_amountController.text, l10n) == null &&
       _sourceCurrency != null &&
       _targetCurrency != null &&
       !_isConverting;
 
   Future<void> _convert() async {
-    if (!_canConvert) {
-      return;
-    }
+    final l10n = AppLocalizations.of(context)!;
+    if (!_canConvert(l10n)) return;
 
     setState(() {
       _isConverting = true;
@@ -101,19 +100,15 @@ class _ConverterScreenState extends State<ConverterScreen> {
           targetCurrency: _targetCurrency!,
         ),
       );
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _result = result;
         _isConverting = false;
       });
     } on Exception catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
-        _conversionError = _conversionErrorMessage(error);
+        _conversionError = _conversionErrorMessage(error, l10n);
         _isConverting = false;
       });
     }
@@ -126,52 +121,68 @@ class _ConverterScreenState extends State<ConverterScreen> {
     });
   }
 
-  void _onCurrencyChanged({String? source, String? target}) {
+  void _onCurrencyChanged({
+    String? source,
+    String? target,
+    bool clear = false,
+  }) {
     setState(() {
-      if (source != null) {
-        _sourceCurrency = source;
-      }
-      if (target != null) {
-        _targetCurrency = target;
+      if (clear) {
+        if (source != null) _sourceCurrency = null;
+        if (target != null) _targetCurrency = null;
+      } else {
+        if (source != null) _sourceCurrency = source;
+        if (target != null) _targetCurrency = target;
       }
       _result = null;
       _conversionError = null;
     });
   }
 
-  String _conversionErrorMessage(Exception error) {
+  String _conversionErrorMessage(Exception error, AppLocalizations l10n) {
     if (error is! RatesApiException) {
-      return 'Conversion could not be completed. Please try again.';
+      return l10n.conversionFailed;
     }
-
     return switch (error.errorCode) {
-      'rate_unavailable' =>
-        error.safeMessage ?? 'A required currency rate is unavailable.',
-      'invalid_conversion_input' =>
-        'Enter a valid amount and select supported currencies.',
-      'conversion_unavailable' =>
-        'Conversion is currently unavailable. Try again later.',
-      _ => 'Conversion could not be completed. Please try again.',
+      'rate_unavailable' => _unavailableRateMessage(error, l10n),
+      'invalid_conversion_input' => l10n.invalidConversionInput,
+      'conversion_unavailable' => l10n.conversionUnavailable,
+      _ => l10n.conversionFailed,
     };
+  }
+
+  String _unavailableRateMessage(
+    RatesApiException error,
+    AppLocalizations l10n,
+  ) {
+    final code = RegExp(r'\b([A-Z0-9]{2,6})\b')
+        .firstMatch(error.safeMessage ?? '')
+        ?.group(1);
+    return code == null
+        ? l10n.requiredCurrencyRateUnavailable
+        : l10n.requiredRateUnavailable(code);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Currency Converter')),
-      body: SafeArea(child: _buildContent(context)),
+    final l10n = AppLocalizations.of(context)!;
+    return CurrencyHubScaffold(
+      title: l10n.currencyConverter,
+      destination: CurrencyHubDestination.converter,
+      onDestinationSelected: widget.onNavigate ?? (_) {},
+      body: _buildContent(context, l10n),
     );
   }
 
-  Widget _buildContent(BuildContext context) {
+  Widget _buildContent(BuildContext context, AppLocalizations l10n) {
     if (_isLoadingCurrencies) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading supported currencies…'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l10n.loadingCurrencies),
           ],
         ),
       );
@@ -186,10 +197,7 @@ class _ConverterScreenState extends State<ConverterScreen> {
             children: [
               Text(error, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _loadCurrencies,
-                child: const Text('Retry'),
-              ),
+              FilledButton(onPressed: _loadCurrencies, child: Text(l10n.retry)),
             ],
           ),
         ),
@@ -198,99 +206,82 @@ class _ConverterScreenState extends State<ConverterScreen> {
 
     final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        Text('Convert one amount', style: theme.textTheme.headlineMedium),
-        const SizedBox(height: 8),
-        const Text('The conversion uses the latest validated rate snapshot.'),
-        const SizedBox(height: 20),
+        Text(l10n.convertOneAmount, style: theme.textTheme.headlineMedium),
+        const SizedBox(height: 6),
+        Text(l10n.latestValidatedSnapshot),
+        const SizedBox(height: 18),
         TextField(
+          key: const Key('converter-amount'),
           controller: _amountController,
           enabled: !_isConverting,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount',
-            hintText: 'e.g. 123.45',
-            errorText: _amountError,
+            labelText: l10n.amount,
+            hintText: l10n.amountExample,
+            errorText: _validateAmount(_amountController.text, l10n),
           ),
           onChanged: _onAmountChanged,
         ),
-        const SizedBox(height: 16),
-        _currencySelector(
-          label: 'From',
+        const SizedBox(height: 14),
+        SearchableCurrencyPicker(
+          key: const Key('converter-source'),
+          currencies: _currencies,
           value: _sourceCurrency,
-          onChanged: (value) => _onCurrencyChanged(source: value),
+          label: l10n.from,
+          fieldId: 'from',
+          enabled: !_isConverting,
+          onChanged: (value) =>
+              _onCurrencyChanged(source: value ?? '', clear: value == null),
         ),
         const SizedBox(height: 12),
-        _currencySelector(
-          label: 'To',
+        SearchableCurrencyPicker(
+          key: const Key('converter-target'),
+          currencies: _currencies,
           value: _targetCurrency,
-          onChanged: (value) => _onCurrencyChanged(target: value),
+          label: l10n.to,
+          fieldId: 'to',
+          enabled: !_isConverting,
+          onChanged: (value) =>
+              _onCurrencyChanged(target: value ?? '', clear: value == null),
         ),
-        const SizedBox(height: 20),
-        FilledButton(
-          onPressed: _canConvert ? _convert : null,
-          child: _isConverting
-              ? const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 12),
-                    Text('Converting…'),
-                  ],
+        const SizedBox(height: 18),
+        FilledButton.icon(
+          onPressed: _canConvert(l10n) ? _convert : null,
+          icon: _isConverting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Convert'),
+              : const Icon(Icons.currency_exchange),
+          label: Text(_isConverting ? l10n.converting : l10n.convert),
         ),
         if (_isConverting) ...[
           const SizedBox(height: 16),
-          const Center(child: Text('Converting…')),
+          Center(child: Text(l10n.converting)),
         ],
         if (_conversionError case final error?) ...[
           const SizedBox(height: 16),
           _ErrorPanel(message: error),
         ],
         if (_result case final result?) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           _ConversionResultCard(result: result),
         ],
       ],
     );
   }
 
-  Widget _currencySelector({
-    required String label,
-    required String? value,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      decoration: InputDecoration(labelText: label),
-      hint: const Text('Select a currency'),
-      items: [
-        for (final currency in _currencies)
-          DropdownMenuItem(
-            value: currency.code,
-            child: Text('${currency.code} — ${currency.name}'),
-          ),
-      ],
-      onChanged: _isConverting ? null : onChanged,
-    );
-  }
-
-  String? _validateAmount(String value) {
+  String? _validateAmount(String value, AppLocalizations l10n) {
     final amount = value.trim();
-    if (amount.isEmpty) {
-      return 'Enter a positive decimal amount.';
-    }
+    if (amount.isEmpty) return l10n.positiveDecimalAmount;
     if (!RegExp(r'^(?:\d+(?:\.\d*)?|\.\d+)$').hasMatch(amount)) {
-      return 'Enter a valid positive decimal amount.';
+      return l10n.validPositiveAmount;
     }
     if (!RegExp(r'[1-9]').hasMatch(amount)) {
-      return 'Amount must be greater than zero.';
+      return l10n.amountGreaterThanZero;
     }
     return null;
   }
@@ -303,87 +294,73 @@ class _ConversionResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     return Card(
+      key: const Key('conversion-result'),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Conversion result',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(l10n.conversionResult, style: theme.textTheme.titleLarge),
             const SizedBox(height: 12),
-            SelectableText('${result.sourceAmount} ${result.sourceCurrency}'),
+            Text(
+              '${CurrencyAmountFormatter.format(result.sourceAmount)} ${result.sourceCurrency}',
+              style: theme.textTheme.titleMedium,
+            ),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 4),
-              child: Text('converts to'),
+              child: Icon(Icons.south, size: 18),
             ),
             SelectableText(
-              '${result.convertedAmount} ${result.targetCurrency}',
-              style: Theme.of(context).textTheme.headlineSmall,
+              '${CurrencyAmountFormatter.format(result.convertedAmount)} ${result.targetCurrency}',
+              key: const Key('formatted-converted-amount'),
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '1 ${result.sourceCurrency} = '
+              '${CurrencyAmountFormatter.format(result.rateValue)} '
+              '${result.targetCurrency}',
+              style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
-            _ResultDetail(
-              label: 'Pair rate',
-              value:
-                  '1 ${result.sourceCurrency} = ${result.rateValue} ${result.targetCurrency}',
-            ),
-            const Text(
-              'Rate value is target-currency units per one source-currency unit.',
-            ),
-            const SizedBox(height: 8),
-            _ResultDetail(
-              label: 'Snapshot',
-              value: result.rateContext.snapshotId,
-            ),
-            const SizedBox(height: 16),
-            _RateContextCard(
-              title: 'Source rate context',
-              rate: result.rateContext.sourceRate,
-            ),
-            const SizedBox(height: 8),
-            _RateContextCard(
-              title: 'Target rate context',
-              rate: result.rateContext.targetRate,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RateContextCard extends StatelessWidget {
-  const _RateContextCard({required this.title, required this.rate});
-
-  final String title;
-  final RateProvenance rate;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$title — ${rate.currency}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            _ResultDetail(label: 'Provider', value: rate.providerName),
-            _ResultDetail(label: 'Rate effective', value: rate.effectiveAt),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            if (result.sourceCurrency == result.targetCurrency)
+              FreshnessBadges(
+                rate: result.rateContext.sourceRate,
+                prefix: l10n.rateStatus,
+              )
+            else ...[
+              FreshnessBadges(
+                rate: result.rateContext.sourceRate,
+                prefix: l10n.sourceCurrency(result.sourceCurrency),
+              ),
+              const SizedBox(height: 6),
+              FreshnessBadges(
+                rate: result.rateContext.targetRate,
+                prefix: l10n.targetCurrency(result.targetCurrency),
+              ),
+            ],
+            ExpandableDetails(
               children: [
-                _StateBadge(label: _freshnessLabel(rate.freshnessState)),
-                if (rate.isFallback) const _StateBadge(label: 'Fallback used'),
-                if (rate.isStale) const _StateBadge(label: 'Stale'),
+                ProvenanceLine(
+                  label: l10n.snapshot,
+                  value: result.rateContext.snapshotId,
+                ),
+                _RateDetail(
+                  rate: result.rateContext.sourceRate,
+                  label: l10n.source,
+                ),
+                if (result.sourceCurrency != result.targetCurrency)
+                  _RateDetail(
+                    rate: result.rateContext.targetRate,
+                    label: l10n.target,
+                  ),
+                Text(l10n.pairRateDescription),
               ],
             ),
           ],
@@ -391,44 +368,39 @@ class _RateContextCard extends StatelessWidget {
       ),
     );
   }
-
-  String _freshnessLabel(FreshnessState state) => switch (state) {
-    FreshnessState.live => 'Live',
-    FreshnessState.fallback => 'Fallback',
-    FreshnessState.cached => 'Cached',
-  };
 }
 
-class _ResultDetail extends StatelessWidget {
-  const _ResultDetail({required this.label, required this.value});
+class _RateDetail extends StatelessWidget {
+  const _RateDetail({required this.rate, required this.label});
 
+  final RateProvenance rate;
   final String label;
-  final String value;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Wrap(
-        spacing: 6,
+  Widget build(BuildContext context) => Card(
+    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$label:', style: Theme.of(context).textTheme.labelLarge),
-          SelectableText(value),
+          Text(
+            AppLocalizations.of(context)!.rateContext(label, rate.currency),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          ProvenanceLine(
+            label: AppLocalizations.of(context)!.provider,
+            value: rate.providerName,
+          ),
+          ProvenanceLine(
+            label: AppLocalizations.of(context)!.rateEffective,
+            value: rate.effectiveAt,
+          ),
+          FreshnessBadges(rate: rate),
         ],
       ),
-    );
-  }
-}
-
-class _StateBadge extends StatelessWidget {
-  const _StateBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(label: Text(label), visualDensity: VisualDensity.compact);
-  }
+    ),
+  );
 }
 
 class _ErrorPanel extends StatelessWidget {
@@ -437,10 +409,14 @@ class _ErrorPanel extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.errorContainer,
-      child: Padding(padding: const EdgeInsets.all(16), child: Text(message)),
-    );
-  }
+  Widget build(BuildContext context) => Card(
+    color: Theme.of(context).colorScheme.errorContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text(
+        message,
+        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+      ),
+    ),
+  );
 }

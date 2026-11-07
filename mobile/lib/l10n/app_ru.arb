@@ -1,0 +1,204 @@
+{
+  "@@locale": "ru",
+  "appName": "CurrencyHub",
+  "navCurrentRates": "Текущие курсы",
+  "navAllCurrencies": "Все валюты",
+  "navConverter": "Конвертер",
+  "navAnalytics": "Аналитика",
+  "language": "Язык",
+  "languageEnglish": "English",
+  "languageRomanian": "Română",
+  "languageRussian": "Русский",
+  "languageSaveFailed": "Не удалось сохранить выбранный язык.",
+  "filterAll": "Все",
+  "filterFiat": "Фиатные",
+  "filterCrypto": "Криптовалюты",
+  "freshnessLive": "Актуальный",
+  "freshnessFallback": "Резервный",
+  "freshnessCached": "Из кэша",
+  "freshnessStale": "Устаревший",
+  "fallbackUsed": "Использован резервный курс",
+  "showMore": "Подробнее",
+  "showLess": "Свернуть",
+  "provider": "Поставщик",
+  "providerType": "Тип поставщика",
+  "rateEffective": "Курс действует с",
+  "nominalUnit": "Номинал",
+  "snapshot": "Снимок данных",
+  "snapshotCollected": "Данные собраны",
+  "eachRateEffectiveTime": "Для каждого курса указано своё время действия.",
+  "retry": "Повторить",
+  "searchCurrencies": "Поиск валют",
+  "searchCodeOrName": "Поиск по коду или названию",
+  "noSearchResults": "Валюты не найдены.",
+  "clearSearch": "Очистить поиск",
+  "currentRates": "Текущие курсы",
+  "loadingCurrentRates": "Загрузка текущих курсов…",
+  "currentRatesUnavailable": "Текущие курсы недоступны.",
+  "noCurrenciesMatch": "По запросу валюты не найдены.",
+  "rateToMdl": "Курс к MDL",
+  "allCurrencies": "Все валюты",
+  "compareCurrencies": "Сравнение валют",
+  "comparisonDescription": "Сравнивайте значения по одному проверенному снимку курсов.",
+  "amount": "Сумма",
+  "entryCurrency": "Исходная валюта",
+  "selectEntryCurrency": "Выберите поддерживаемую исходную валюту.",
+  "loadingComparison": "Загрузка сравнения валют…",
+  "comparisonUnavailable": "Сравнение недоступно. Нужен полный снимок курсов.",
+  "rateDetailsOnEachResult": "Подробности курса доступны для каждой валюты.",
+  "noCurrenciesMatchFilter": "Нет других валют, подходящих под фильтр.",
+  "validPositiveAmount": "Введите корректную положительную сумму.",
+  "amountGreaterThanZero": "Сумма должна быть больше нуля.",
+  "currencyConverter": "Конвертер валют",
+  "convertOneAmount": "Конвертация суммы",
+  "latestValidatedSnapshot": "Используется последний проверенный снимок курсов.",
+  "amountExample": "например, 123.45",
+  "from": "Из",
+  "to": "В",
+  "convert": "Конвертировать",
+  "converting": "Конвертация…",
+  "loadingCurrencies": "Загрузка поддерживаемых валют…",
+  "noSupportedCurrencies": "Нет доступных поддерживаемых валют.",
+  "supportedCurrenciesUnavailable": "Список поддерживаемых валют недоступен.",
+  "positiveDecimalAmount": "Введите положительную сумму.",
+  "conversionUnavailable": "Конвертация сейчас недоступна. Попробуйте позже.",
+  "conversionFailed": "Не удалось выполнить конвертацию. Попробуйте ещё раз.",
+  "invalidConversionInput": "Введите корректную сумму и выберите поддерживаемые валюты.",
+  "requiredRateUnavailable": "Курс валюты {currency} недоступен.",
+  "@requiredRateUnavailable": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredCurrencyRateUnavailable": "Необходимый валютный курс недоступен.",
+  "conversionResult": "Результат конвертации",
+  "rateStatus": "Статус курса",
+  "sourceCurrency": "Исходная {currency}",
+  "@sourceCurrency": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "targetCurrency": "Целевая {currency}",
+  "@targetCurrency": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "pairRateDescription": "Курс пары показывает количество единиц целевой валюты за одну единицу исходной.",
+  "rateContext": "Данные курса ({label}) — {currency}",
+  "@rateContext": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "source": "Исходная",
+  "target": "Целевая",
+  "rateAnalytics": "Аналитика курсов",
+  "historicalAnalytics": "История курсов",
+  "analyticsDescription": "Изучайте динамику курсов и источники данных.",
+  "baseCurrency": "Базовая валюта",
+  "quoteCurrency": "Котируемая валюта",
+  "sevenDays": "7 дней",
+  "thirtyDays": "30 дней",
+  "loadingAnalytics": "Загрузка исторической аналитики…",
+  "analyticsUnavailable": "Аналитика недоступна.",
+  "noHistoricalData": "За выбранный период нет исторических данных по этой паре.",
+  "rateHistory": "История курса",
+  "selectedDay": "Выбранный день",
+  "base": "Базовая",
+  "quote": "Котируемая",
+  "minimum": "Минимум",
+  "maximum": "Максимум",
+  "average": "Среднее",
+  "absoluteChange": "Абсолютное изменение",
+  "percentageChange": "Изменение в процентах",
+  "trend": "Тенденция",
+  "growth": "Рост",
+  "decline": "Снижение",
+  "unchanged": "Без изменений",
+  "dataContext": "Источники данных",
+  "baseProviders": "Поставщики базовой валюты: {providers}",
+  "@baseProviders": {
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "quoteProviders": "Поставщики котируемой валюты: {providers}",
+  "@quoteProviders": {
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCount": "Актуальные: {count}",
+  "@liveCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fallbackCount": "Резервные: {count}",
+  "@fallbackCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cachedCount": "Из кэша: {count}",
+  "@cachedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "staleCount": "Устаревшие: {count}",
+  "@staleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fallbackUsedCount": "Использовано резервных курсов: {count}",
+  "@fallbackUsedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "baseCurrencyContext": "Базовая валюта — {currency}",
+  "@baseCurrencyContext": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "quoteCurrencyContext": "Котируемая валюта — {currency}",
+  "@quoteCurrencyContext": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  }
+}

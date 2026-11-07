@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/features/converter/presentation/converter_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -35,7 +36,10 @@ void main() {
     await _selectCurrency(tester, 0, 'USD');
     await _selectCurrency(tester, 1, 'BTC');
     for (final invalid in ['', '0', '0.000', '-1', 'abc', 'NaN', 'Infinity']) {
-      await tester.enterText(find.byType(TextField), invalid);
+      await tester.enterText(
+        find.byKey(const Key('converter-amount')),
+        invalid,
+      );
       await tester.pump();
       expect(
         tester
@@ -68,7 +72,7 @@ void main() {
     addTearDown(client.close);
 
     await _pumpScreen(tester, client);
-    await tester.enterText(find.byType(TextField), '25');
+    await tester.enterText(find.byKey(const Key('converter-amount')), '25');
     await _selectCurrency(tester, 0, 'USD');
     await _selectCurrency(tester, 1, 'USD');
     await tester.tap(find.widgetWithText(FilledButton, 'Convert'));
@@ -79,10 +83,15 @@ void main() {
       'source_currency': 'USD',
       'target_currency': 'USD',
     });
-    expect(find.text('25.00 USD'), findsOneWidget);
-    expect(find.text('1 USD = 1 USD'), findsOneWidget);
+    expect(find.text('25.00 USD'), findsNWidgets(2));
+    expect(find.text('1 USD = 1.00 USD'), findsOneWidget);
+    expect(find.text('Source rate context — USD'), findsNothing);
+    await tester.tap(find.text('Show more'));
+    await tester.pumpAndSettle();
     expect(find.text('Source rate context — USD'), findsOneWidget);
-    expect(find.text('Target rate context — USD'), findsOneWidget);
+    expect(find.text('Target rate context — USD'), findsNothing);
+    expect(find.text('Snapshot:'), findsOneWidget);
+    expect(find.text('snapshot-2026-10-28'), findsOneWidget);
   });
 
   testWidgets(
@@ -105,18 +114,18 @@ void main() {
       addTearDown(client.close);
 
       await _pumpScreen(tester, client);
-      await tester.enterText(find.byType(TextField), '25');
+      await tester.enterText(find.byKey(const Key('converter-amount')), '25');
       await _selectCurrency(tester, 0, 'USD');
       await _selectCurrency(tester, 1, 'BTC');
       await tester.tap(find.widgetWithText(FilledButton, 'Convert'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Rate for BTC is unavailable.'), findsOneWidget);
+      expect(find.text('The rate for BTC is unavailable.'), findsOneWidget);
       expect(find.text('Conversion result'), findsNothing);
     },
   );
 
-  testWidgets('shows independent source and target provenance labels', (
+  testWidgets('keeps detailed provenance collapsed until expanded', (
     tester,
   ) async {
     final client = MockClient((request) async {
@@ -128,12 +137,21 @@ void main() {
     addTearDown(client.close);
 
     await _pumpScreen(tester, client);
-    await tester.enterText(find.byType(TextField), '25');
+    await tester.enterText(find.byKey(const Key('converter-amount')), '25');
     await _selectCurrency(tester, 0, 'USD');
     await _selectCurrency(tester, 1, 'BTC');
     await tester.tap(find.widgetWithText(FilledButton, 'Convert'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Source rate context — USD'), findsNothing);
+    expect(find.text('Target rate context — BTC'), findsNothing);
+    expect(find.text('Live'), findsOneWidget);
+    expect(find.text('Cached'), findsOneWidget);
+    expect(find.text('Stale'), findsOneWidget);
+    expect(find.text('Fallback used'), findsOneWidget);
+    expect(find.text('Show more'), findsOneWidget);
+    await tester.tap(find.text('Show more'));
+    await tester.pumpAndSettle();
     expect(find.text('Source rate context — USD'), findsOneWidget);
     expect(find.text('Target rate context — BTC'), findsOneWidget);
     final sourceCard = find
@@ -166,10 +184,104 @@ void main() {
     );
     expect(find.text('2026-10-28T09:00:00Z'), findsOneWidget);
     expect(find.text('2026-10-28T11:45:00Z'), findsOneWidget);
-    expect(find.text('Live'), findsOneWidget);
-    expect(find.text('Cached'), findsOneWidget);
-    expect(find.text('Stale'), findsOneWidget);
-    expect(find.text('Fallback used'), findsOneWidget);
+    expect(find.text('Live'), findsNWidgets(2));
+    expect(find.text('Cached'), findsNWidgets(2));
+    expect(find.text('Stale'), findsNWidgets(2));
+    expect(find.text('Fallback used'), findsNWidgets(2));
+  });
+
+  testWidgets('searches both currency fields and rejects arbitrary text', (
+    tester,
+  ) async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/currencies')) {
+        return _jsonResponse(_currenciesJson());
+      }
+      return _jsonResponse(_conversionJson());
+    });
+    addTearDown(client.close);
+    await _pumpScreen(tester, client);
+
+    await tester.enterText(find.byKey(const Key('converter-amount')), '1');
+    await _searchAndSelect(tester, 'From', 'usd', 'USD');
+    await _searchAndSelect(tester, 'To', 'bitcoin', 'BTC');
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Convert'))
+          .onPressed,
+      isNotNull,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('currency-picker-from')),
+      'not a currency',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No matching currencies.'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Convert'))
+          .onPressed,
+      isNull,
+    );
+    expect(find.text('not a currency'), findsOneWidget);
+  });
+
+  testWidgets('keeps MDL available in the converter currency selector', (
+    tester,
+  ) async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/currencies')) {
+        return _jsonResponse(_currenciesJson());
+      }
+      return _jsonResponse(_conversionJson());
+    });
+    addTearDown(client.close);
+    await _pumpScreen(tester, client);
+
+    await tester.tap(find.byKey(const Key('currency-picker-from')));
+    await tester.enterText(
+      find.byKey(const Key('currency-picker-from')),
+      'MDL',
+    );
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'MDL'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ListTile, 'MDL'));
+    await tester.pumpAndSettle();
+    expect(find.text('MDL — Moldovan Leu'), findsOneWidget);
+  });
+
+  testWidgets('formats display values without changing the submitted amount', (
+    tester,
+  ) async {
+    Map<String, dynamic>? requestBody;
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/currencies')) {
+        return _jsonResponse(_currenciesJson());
+      }
+      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return _jsonResponse(
+        _conversionJson(
+          convertedAmount: '12647.561197',
+          rateValue: '50.048739',
+        ),
+      );
+    });
+    addTearDown(client.close);
+    await _pumpScreen(tester, client);
+    await tester.enterText(
+      find.byKey(const Key('converter-amount')),
+      '25.123456789',
+    );
+    await _searchAndSelect(tester, 'From', 'usd', 'USD');
+    await _searchAndSelect(tester, 'To', 'btc', 'BTC');
+    await tester.tap(find.widgetWithText(FilledButton, 'Convert'));
+    await tester.pumpAndSettle();
+
+    expect(requestBody?['amount'], '25.123456789');
+    expect(find.text('12647.56 BTC'), findsOneWidget);
+    expect(find.text('1 USD = 50.05 BTC'), findsOneWidget);
+    expect(find.text('12647.561197 BTC'), findsNothing);
   });
 }
 
@@ -180,6 +292,9 @@ Future<void> _pumpScreen(WidgetTester tester, http.Client client) async {
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: ConverterScreen(apiClient: RatesApiClient(client: client)),
     ),
   );
@@ -191,11 +306,25 @@ Future<void> _selectCurrency(
   int selectorIndex,
   String currency,
 ) async {
-  await tester.tap(
-    find.byType(DropdownButtonFormField<String>).at(selectorIndex),
+  await _searchAndSelect(
+    tester,
+    selectorIndex == 0 ? 'From' : 'To',
+    currency,
+    currency,
   );
+}
+
+Future<void> _searchAndSelect(
+  WidgetTester tester,
+  String label,
+  String query,
+  String code,
+) async {
+  final field = find.byKey(Key('currency-picker-${label.toLowerCase()}'));
+  await tester.tap(field);
+  await tester.enterText(field, query);
   await tester.pumpAndSettle();
-  await tester.tap(find.textContaining('$currency — ').last);
+  await tester.tap(find.widgetWithText(ListTile, code).last);
   await tester.pumpAndSettle();
 }
 
@@ -216,6 +345,12 @@ Map<String, dynamic> _currenciesJson() {
         'code': 'BTC',
         'name': 'Bitcoin',
         'type': 'crypto',
+        'is_supported': true,
+      },
+      {
+        'code': 'MDL',
+        'name': 'Moldovan Leu',
+        'type': 'fiat',
         'is_supported': true,
       },
     ],

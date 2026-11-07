@@ -1,0 +1,204 @@
+{
+  "@@locale": "en",
+  "appName": "CurrencyHub",
+  "navCurrentRates": "Current Rates",
+  "navAllCurrencies": "All Currencies",
+  "navConverter": "Converter",
+  "navAnalytics": "Analytics",
+  "language": "Language",
+  "languageEnglish": "English",
+  "languageRomanian": "Română",
+  "languageRussian": "Русский",
+  "languageSaveFailed": "Could not save your language preference.",
+  "filterAll": "All",
+  "filterFiat": "Fiat",
+  "filterCrypto": "Crypto",
+  "freshnessLive": "Live",
+  "freshnessFallback": "Fallback",
+  "freshnessCached": "Cached",
+  "freshnessStale": "Stale",
+  "fallbackUsed": "Fallback used",
+  "showMore": "Show more",
+  "showLess": "Show less",
+  "provider": "Provider",
+  "providerType": "Provider type",
+  "rateEffective": "Rate effective",
+  "nominalUnit": "Nominal unit",
+  "snapshot": "Snapshot",
+  "snapshotCollected": "Snapshot collected",
+  "eachRateEffectiveTime": "Each rate has its own effective time.",
+  "retry": "Retry",
+  "searchCurrencies": "Search currencies",
+  "searchCodeOrName": "Search by code or name",
+  "noSearchResults": "No matching currencies.",
+  "clearSearch": "Clear search",
+  "currentRates": "Current Rates",
+  "loadingCurrentRates": "Loading current rates…",
+  "currentRatesUnavailable": "Current rates are unavailable.",
+  "noCurrenciesMatch": "No currencies match your search.",
+  "rateToMdl": "Rate to MDL",
+  "allCurrencies": "All Currencies",
+  "compareCurrencies": "Compare currencies",
+  "comparisonDescription": "Compare values using one validated rate snapshot.",
+  "amount": "Amount",
+  "entryCurrency": "Entry currency",
+  "selectEntryCurrency": "Select a supported entry currency.",
+  "loadingComparison": "Loading currency comparison…",
+  "comparisonUnavailable": "Comparison is unavailable. A complete rate snapshot is required.",
+  "rateDetailsOnEachResult": "Rate details are available for each result.",
+  "noCurrenciesMatchFilter": "No other currencies match this filter.",
+  "validPositiveAmount": "Enter a valid positive decimal amount.",
+  "amountGreaterThanZero": "Amount must be greater than zero.",
+  "currencyConverter": "Currency Converter",
+  "convertOneAmount": "Convert one amount",
+  "latestValidatedSnapshot": "Using the latest validated rate snapshot.",
+  "amountExample": "e.g. 123.45",
+  "from": "From",
+  "to": "To",
+  "convert": "Convert",
+  "converting": "Converting…",
+  "loadingCurrencies": "Loading supported currencies…",
+  "noSupportedCurrencies": "No supported currencies are available.",
+  "supportedCurrenciesUnavailable": "Supported currencies are unavailable.",
+  "positiveDecimalAmount": "Enter a positive decimal amount.",
+  "conversionUnavailable": "Conversion is currently unavailable. Try again later.",
+  "conversionFailed": "Conversion could not be completed. Please try again.",
+  "invalidConversionInput": "Enter a valid amount and select supported currencies.",
+  "requiredRateUnavailable": "The rate for {currency} is unavailable.",
+  "@requiredRateUnavailable": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredCurrencyRateUnavailable": "A required currency rate is unavailable.",
+  "conversionResult": "Conversion result",
+  "rateStatus": "Rate status",
+  "sourceCurrency": "Source {currency}",
+  "@sourceCurrency": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "targetCurrency": "Target {currency}",
+  "@targetCurrency": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "pairRateDescription": "The pair rate shows target-currency units for one source-currency unit.",
+  "rateContext": "{label} rate context — {currency}",
+  "@rateContext": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "source": "Source",
+  "target": "Target",
+  "rateAnalytics": "Rate Analytics",
+  "historicalAnalytics": "Historical Analytics",
+  "analyticsDescription": "Explore rate movements and their sources.",
+  "baseCurrency": "Base currency",
+  "quoteCurrency": "Quote currency",
+  "sevenDays": "7 days",
+  "thirtyDays": "30 days",
+  "loadingAnalytics": "Loading historical analytics…",
+  "analyticsUnavailable": "Analytics are unavailable.",
+  "noHistoricalData": "No historical data is available for this pair in the selected period.",
+  "rateHistory": "Rate history",
+  "selectedDay": "Selected day",
+  "base": "Base",
+  "quote": "Quote",
+  "minimum": "Minimum",
+  "maximum": "Maximum",
+  "average": "Average",
+  "absoluteChange": "Absolute change",
+  "percentageChange": "Percentage change",
+  "trend": "Trend",
+  "growth": "Growth",
+  "decline": "Decline",
+  "unchanged": "Unchanged",
+  "dataContext": "Data context",
+  "baseProviders": "Base: {providers}",
+  "@baseProviders": {
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "quoteProviders": "Quote: {providers}",
+  "@quoteProviders": {
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCount": "Live: {count}",
+  "@liveCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fallbackCount": "Fallback: {count}",
+  "@fallbackCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cachedCount": "Cached: {count}",
+  "@cachedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "staleCount": "Stale: {count}",
+  "@staleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fallbackUsedCount": "Fallback used: {count}",
+  "@fallbackUsedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "baseCurrencyContext": "Base currency — {currency}",
+  "@baseCurrencyContext": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "quoteCurrencyContext": "Quote currency — {currency}",
+  "@quoteCurrencyContext": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  }
+}

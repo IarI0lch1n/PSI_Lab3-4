@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
 import 'package:currencyhub_mobile/features/rates/presentation/all_currencies_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -20,70 +21,76 @@ void main() {
     final response = Completer<http.Response>();
     await pumpScreen(tester, latest: () => response.future, settle: false);
     await tester.pump();
-    expect(find.text('Loading currency comparison...'), findsOneWidget);
+    expect(find.text('Loading currency comparison…'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     response.complete(jsonResponse(snapshot()));
     await tester.pumpAndSettle();
     expect(find.text(capturedAt), findsOneWidget);
-    expect(amount(tester, 'EUR'), '1');
-    expect(amount(tester, 'USD'), '0.5');
+    expect(find.byKey(const Key('comparison-EUR')), findsNothing);
+    expect(amount(tester, 'USD'), '0.50');
     expect(amount(tester, 'BTC'), '0.25');
   });
 
-  testWidgets('offers supported currencies only and switches without refetch', (
-    tester,
-  ) async {
-    final requests = <String>[];
-    await pumpScreen(tester, requests: requests);
-    await tester.tap(find.byKey(const Key('comparison-source')));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('EUR — Euro'), findsWidgets);
-    expect(find.textContaining('USD — US Dollar'), findsWidgets);
-    expect(find.textContaining('BTC — Bitcoin'), findsWidgets);
-    expect(find.textContaining('XXX'), findsNothing);
-    await tester.tap(find.text('USD — US Dollar').last);
-    await tester.pumpAndSettle();
-    expect(amount(tester, 'EUR'), '2');
-    expect(amount(tester, 'USD'), '1');
-    expect(amount(tester, 'BTC'), '0.5');
-    await tester.enterText(
-      find.byKey(const Key('comparison-amount')),
-      '0.100000000000000001',
-    );
-    await tester.pumpAndSettle();
-    expect(amount(tester, 'EUR'), '0.200000000000000002');
-    expect(amount(tester, 'USD'), '0.100000000000000001');
-    expect(amount(tester, 'BTC'), '0.0500000000000000005');
-    expect(find.text(capturedAt), findsOneWidget);
-    expect(requests.where((path) => path.endsWith('/rates/latest')).length, 1);
-    expect(requests.where((path) => path.endsWith('/currencies')).length, 1);
-  });
-
   testWidgets(
-    'keeps provider, effective time and all flags independent per row',
+    'searches supported entry currencies and switches without refetch',
     (tester) async {
-      await pumpScreen(tester);
-      expectIn('EUR', 'Euro');
-      expectIn('EUR', 'BNM');
-      expectIn('EUR', fiatTime);
-      expectIn('EUR', 'Live');
-      expectIn('EUR', 'Fallback used', absent: true);
-      expectIn('EUR', 'Stale', absent: true);
-      expectIn('USD', 'BNM');
-      expectIn('USD', fallbackTime);
-      expectIn('USD', 'Fallback');
-      expectIn('USD', 'Fallback used');
-      expectIn('USD', 'Stale', absent: true);
-      expectIn('BTC', 'CoinGecko');
-      expectIn('BTC', cryptoTime);
-      expectIn('BTC', 'Cached');
-      expectIn('BTC', 'Stale');
-      expectIn('BTC', 'Fallback used', absent: true);
-      for (final code in ['EUR', 'USD', 'BTC']) {
-        expectIn(code, capturedAt, absent: true);
-      }
+      final requests = <String>[];
+      await pumpScreen(tester, requests: requests);
+      await tester.tap(find.byKey(const Key('currency-picker-entry-currency')));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, 'EUR'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'USD'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'BTC'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'MDL'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'XXX'), findsNothing);
+      await tester.tap(find.widgetWithText(ListTile, 'USD'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('comparison-EUR')), findsOneWidget);
+      expect(find.byKey(const Key('comparison-USD')), findsNothing);
+      expect(amount(tester, 'EUR'), '2.00');
+      expect(amount(tester, 'BTC'), '0.50');
+      expect(amount(tester, 'MDL'), '4.00');
+      await tester.enterText(
+        find.byKey(const Key('comparison-amount')),
+        '0.100000000000000001',
+      );
+      await tester.pumpAndSettle();
+      expect(amount(tester, 'EUR'), '0.20');
+      expect(find.byKey(const Key('comparison-USD')), findsNothing);
+      expect(amount(tester, 'BTC'), '0.05');
+      expect(find.text(capturedAt), findsOneWidget);
+      expect(
+        requests.where((path) => path.endsWith('/rates/latest')).length,
+        1,
+      );
+      expect(requests.where((path) => path.endsWith('/currencies')).length, 1);
     },
   );
+
+  testWidgets('keeps rate details collapsed until requested', (tester) async {
+    await pumpScreen(tester);
+    expect(find.byKey(const Key('comparison-EUR')), findsNothing);
+    expectIn('USD', 'BNM', absent: true);
+    expectIn('USD', fallbackTime, absent: true);
+    expectIn('USD', 'Fallback');
+    expectIn('USD', 'Fallback used');
+    expectIn('USD', 'Stale', absent: true);
+    expectIn('BTC', 'CoinGecko', absent: true);
+    expectIn('BTC', cryptoTime, absent: true);
+    expectIn('BTC', 'Cached');
+    expectIn('BTC', 'Stale');
+    expectIn('BTC', 'Fallback used', absent: true);
+
+    final usdCard = find.byKey(const Key('comparison-USD'));
+    await tester.tap(
+      find.descendant(of: usdCard, matching: find.text('Show more')),
+    );
+    await tester.pumpAndSettle();
+    expectIn('USD', 'BNM');
+    expectIn('USD', fallbackTime);
+    expectIn('USD', 'Show less');
+    expect(find.text(capturedAt), findsOneWidget);
+  });
 
   testWidgets('cached alone implies neither fallback-used nor stale', (
     tester,
@@ -110,7 +117,8 @@ void main() {
         invalid,
       );
       await tester.pumpAndSettle();
-      expect(find.byType(Card), findsNothing);
+      expect(find.byKey(const Key('comparison-USD')), findsNothing);
+      expect(find.byKey(const Key('comparison-BTC')), findsNothing);
       expect(
         find.textContaining(
           invalid.contains('0') ? 'greater than zero' : 'valid positive',
@@ -120,7 +128,7 @@ void main() {
       expect(find.text(capturedAt), findsOneWidget);
       await tester.enterText(find.byKey(const Key('comparison-amount')), '2');
       await tester.pumpAndSettle();
-      expect(amount(tester, 'USD'), '1');
+      expect(amount(tester, 'USD'), '1.00');
     });
   }
 
@@ -191,8 +199,38 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(amount(tester, 'BTC'), '30.86419725308641972525');
+    expect(amount(tester, 'BTC'), '30.86');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('source currency can be excluded while type filter is applied', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    expect(find.byKey(const Key('comparison-EUR')), findsNothing);
+    expect(find.byKey(const Key('comparison-USD')), findsOneWidget);
+    expect(find.byKey(const Key('comparison-BTC')), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('currency-type-filter')),
+        matching: find.text('Crypto'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comparison-BTC')), findsOneWidget);
+    expect(find.byKey(const Key('comparison-USD')), findsNothing);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('currency-type-filter')),
+        matching: find.text('Fiat'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comparison-USD')), findsOneWidget);
+    expect(find.byKey(const Key('comparison-BTC')), findsNothing);
+    expectIn('USD', 'Show more');
   });
 
   testWidgets('ignores a pending response after disposal', (tester) async {
@@ -233,6 +271,9 @@ Future<void> pumpScreen(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: AllCurrenciesScreen(apiClient: RatesApiClient(client: fake)),
     ),
   );
@@ -256,6 +297,7 @@ Map<String, dynamic> currencies() => {
       ('EUR', 'Euro', 'fiat'),
       ('USD', 'US Dollar', 'fiat'),
       ('BTC', 'Bitcoin', 'crypto'),
+      ('MDL', 'Moldovan Leu', 'fiat'),
       ('XXX', 'Unsupported', 'fiat'),
     ])
       {
@@ -274,6 +316,7 @@ Map<String, dynamic> snapshot() => {
       ('EUR', '2', 'live', fiatTime),
       ('USD', '4', 'fallback', fallbackTime),
       ('BTC', '8', 'cached', cryptoTime),
+      ('MDL', '1', 'live', fiatTime),
     ])
       {
         'currency': entry.$1,

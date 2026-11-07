@@ -2,12 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/rates_api_client.dart';
 import '../../../core/models/rate_models.dart';
+import '../../../core/presentation/currency_amount_formatter.dart';
+import '../../../core/presentation/currency_hub_widgets.dart';
+import '../../../core/presentation/searchable_currency_picker.dart';
+import '../../../l10n/app_localizations.dart';
 import '../domain/all_currencies_calculator.dart';
 
 class AllCurrenciesScreen extends StatefulWidget {
-  const AllCurrenciesScreen({required this.apiClient, super.key});
+  const AllCurrenciesScreen({
+    required this.apiClient,
+    super.key,
+    this.onNavigate,
+  });
 
   final RatesApiClient apiClient;
+  final ValueChanged<CurrencyHubDestination>? onNavigate;
 
   @override
   State<AllCurrenciesScreen> createState() => _AllCurrenciesScreenState();
@@ -19,6 +28,7 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
   List<CurrencyModel> _currencies = const [];
   RateSnapshot? _snapshot;
   String? _source;
+  CurrencyFilter _filter = CurrencyFilter.all;
   bool _loading = true;
   bool _failed = false;
 
@@ -95,7 +105,6 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
         throw const FormatException('Invalid rate metadata.');
       }
     }
-    // Validate every normalized rate before presenting any complete comparison.
     _calculator.calculate(
       amount: '1',
       sourceCurrency: currencies.first.code,
@@ -103,34 +112,37 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
     );
   }
 
-  String? get _amountError {
+  String? _amountError(AppLocalizations l10n) {
     final value = _amount.text.trim();
     if (!RegExp(r'^(?:\d+(?:\.\d*)?|\.\d+)$').hasMatch(value)) {
-      return 'Enter a valid positive decimal amount.';
+      return l10n.validPositiveAmount;
     }
     if (!RegExp(r'[1-9]').hasMatch(value)) {
-      return 'Amount must be greater than zero.';
+      return l10n.amountGreaterThanZero;
     }
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('All Currencies')),
-      body: SafeArea(child: _content(context)),
+    final l10n = AppLocalizations.of(context)!;
+    return CurrencyHubScaffold(
+      title: l10n.allCurrencies,
+      destination: CurrencyHubDestination.allCurrencies,
+      onDestinationSelected: widget.onNavigate ?? (_) {},
+      body: _content(context, l10n),
     );
   }
 
-  Widget _content(BuildContext context) {
+  Widget _content(BuildContext context, AppLocalizations l10n) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading currency comparison...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l10n.loadingComparison),
           ],
         ),
       );
@@ -142,65 +154,108 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Comparison is unavailable. A complete rate snapshot is required.',
-                textAlign: TextAlign.center,
-              ),
+              Text(l10n.comparisonUnavailable, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _load, child: const Text('Retry')),
+              FilledButton(onPressed: _load, child: Text(l10n.retry)),
             ],
           ),
         ),
       );
     }
+
     final snapshot = _snapshot!;
-    final values = _amountError == null
+    final amountError = _amountError(l10n);
+    final values = amountError == null && _source != null
         ? _calculator.calculate(
             amount: _amount.text,
             sourceCurrency: _source!,
             rates: snapshot.rates,
           )
         : <CalculatedCurrencyValue>[];
+    final visibleValues = values
+        .where((value) {
+          if (value.currency.currency == _source) return false;
+          return switch (_filter) {
+            CurrencyFilter.all => true,
+            CurrencyFilter.fiat =>
+              value.currency.providerType == CurrencyType.fiat,
+            CurrencyFilter.crypto =>
+              value.currency.providerType == CurrencyType.crypto,
+          };
+        })
+        .toList(growable: false);
+
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        const Text('Compare currencies using the same rate snapshot.'),
+        Text(
+          l10n.compareCurrencies,
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(l10n.comparisonDescription),
         const SizedBox(height: 16),
         TextField(
           key: const Key('comparison-amount'),
           controller: _amount,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount',
-            errorText: _amountError,
+            labelText: l10n.amount,
+            errorText: amountError,
           ),
           onChanged: (_) => setState(() {}),
         ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
+        const SizedBox(height: 14),
+        SearchableCurrencyPicker(
           key: const Key('comparison-source'),
-          initialValue: _source,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Entry currency'),
-          items: [
-            for (final currency in _currencies)
-              DropdownMenuItem(
-                value: currency.code,
-                child: Text('${currency.code} — ${currency.name}'),
-              ),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _source = value);
-          },
+          currencies: _currencies,
+          value: _source,
+          label: l10n.entryCurrency,
+          fieldId: 'entry-currency',
+          onChanged: (value) => setState(() => _source = value),
         ),
-        const SizedBox(height: 16),
-        const Text('Snapshot collected'),
-        SelectableText(snapshot.capturedAt),
-        const Text(
-          'Each currency below has its own provider and effective time.',
+        if (_source == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              l10n.selectEntryCurrency,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        const SizedBox(height: 12),
+        CurrencyTypeFilter(
+          value: _filter,
+          onChanged: (value) => setState(() => _filter = value),
         ),
-        const SizedBox(height: 16),
-        for (final value in values)
+        const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.snapshotCollected,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 4),
+                SelectableText(snapshot.capturedAt),
+                const SizedBox(height: 4),
+                Text(l10n.rateDetailsOnEachResult),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (amountError == null && _source != null && visibleValues.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            child: Text(
+              l10n.noCurrenciesMatchFilter,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        for (final value in visibleValues)
           _ComparisonCard(
             key: ValueKey('comparison-${value.currency.currency}'),
             value: value,
@@ -217,42 +272,49 @@ class _AllCurrenciesScreenState extends State<AllCurrenciesScreen> {
 
 class _ComparisonCard extends StatelessWidget {
   const _ComparisonCard({required this.value, required this.name, super.key});
+
   final CalculatedCurrencyValue value;
   final String name;
 
   @override
   Widget build(BuildContext context) {
     final rate = value.currency;
-    final state = switch (rate.freshnessState) {
-      FreshnessState.live => 'Live',
-      FreshnessState.fallback => 'Fallback',
-      FreshnessState.cached => 'Cached',
-    };
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(rate.currency, style: Theme.of(context).textTheme.titleLarge),
-            Text(name),
-            const SizedBox(height: 8),
-            SelectableText(
-              value.amount,
-              key: ValueKey('value-${rate.currency}'),
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            const Text('Provider'),
-            Text(rate.providerName),
-            const Text('Rate effective'),
-            Text(rate.effectiveAt),
             Wrap(
               spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Chip(label: Text(state)),
-                if (rate.isFallback) const Chip(label: Text('Fallback used')),
-                if (rate.isStale) const Chip(label: Text('Stale')),
+                Text(
+                  rate.currency,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Text(name, style: Theme.of(context).textTheme.titleMedium),
+                CurrencyTypeBadge(type: rate.providerType),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              CurrencyAmountFormatter.format(value.amount),
+              key: ValueKey('value-${rate.currency}'),
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            FreshnessBadges(rate: rate),
+            ExpandableDetails(
+              children: [
+                ProvenanceLine(label: l10n.provider, value: rate.providerName),
+                ProvenanceLine(
+                  label: l10n.rateEffective,
+                  value: rate.effectiveAt,
+                ),
               ],
             ),
           ],

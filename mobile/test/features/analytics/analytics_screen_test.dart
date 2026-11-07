@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:currencyhub_mobile/core/api/rates_api_client.dart';
+import 'package:currencyhub_mobile/core/presentation/currency_hub_widgets.dart';
 import 'package:currencyhub_mobile/features/analytics/presentation/analytics_screen.dart';
+import 'package:currencyhub_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -19,30 +21,30 @@ void main() {
       settle: false,
     );
     await tester.pump();
-    expect(find.text('Loading historical analytics...'), findsOneWidget);
+    expect(find.text('Loading historical analytics…'), findsOneWidget);
     expect(find.byKey(const Key('analytics-metrics')), findsNothing);
     pending.complete(jsonResponse(historyPayload()));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('analytics-metrics')), findsOneWidget);
   });
 
-  testWidgets('renders exact metrics and aggregate provenance counts', (
+  testWidgets('renders formatted metrics and aggregate provenance counts', (
     tester,
   ) async {
     await pumpScreen(tester);
 
     expect(find.text('0.0000318'), findsWidgets);
-    expect(find.text('0.0000330'), findsWidgets);
-    expect(find.text('0.0000324'), findsOneWidget);
-    expect(find.text('0.0000012'), findsOneWidget);
-    expect(find.text('1.26%'), findsOneWidget);
+    expect(find.text('0.000033'), findsWidgets);
+    expect(find.text('0.0000323'), findsOneWidget);
+    expect(find.text('0.0000003'), findsOneWidget);
+    expect(find.text('0.94%'), findsOneWidget);
     expect(find.text('Growth'), findsOneWidget);
-    expect(find.text('Base providers: BNM, Backup BNM'), findsOneWidget);
-    expect(find.text('Quote providers: CoinGecko'), findsOneWidget);
-    expect(find.text('Live entries: 2'), findsOneWidget);
-    expect(find.text('Fallback entries: 1'), findsOneWidget);
-    expect(find.text('Cached entries: 1'), findsOneWidget);
-    expect(find.text('Stale entries: 1'), findsOneWidget);
+    expect(find.text('Base: BNM, Backup BNM'), findsOneWidget);
+    expect(find.text('Quote: CoinGecko'), findsOneWidget);
+    expect(find.text('Live: 4'), findsOneWidget);
+    expect(find.text('Fallback: 1'), findsOneWidget);
+    expect(find.text('Cached: 1'), findsOneWidget);
+    expect(find.text('Stale: 1'), findsOneWidget);
     expect(find.text('Fallback used: 1'), findsOneWidget);
   });
 
@@ -51,35 +53,24 @@ void main() {
     (tester) async {
       await pumpScreen(tester);
 
-      expectInLeg('Base', 'EUR', 'BNM');
-      expectInLeg('Base', 'EUR', 'Live');
-      expectInLeg('Base', 'EUR', 'Fallback used', absent: true);
-      expectInLeg('Base', 'EUR', 'Stale', absent: true);
-      expectInLeg('Quote', 'BTC', 'CoinGecko');
-      expectInLeg('Quote', 'BTC', 'Cached');
-      expectInLeg('Quote', 'BTC', 'Stale');
-      expectInLeg('Quote', 'BTC', 'Fallback used', absent: true);
+      expect(find.text('BNM'), findsOneWidget);
+      expect(find.text('Live'), findsNWidgets(2));
+      expect(find.text('Cached'), findsNothing);
+      expect(find.text('Fallback used'), findsNothing);
 
-      await tester.scrollUntilVisible(
-        find.text('Backup BNM'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      final fallbackLeg = find
-          .ancestor(of: find.text('Backup BNM'), matching: find.byType(Column))
-          .first;
-      expect(
-        find.descendant(of: fallbackLeg, matching: find.text('Fallback')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: fallbackLeg, matching: find.text('Fallback used')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: fallbackLeg, matching: find.text('Stale')),
-        findsNothing,
-      );
+      await tester.tap(find.byKey(const Key('analytics-bar-0')));
+      await tester.pumpAndSettle();
+      expect(find.text('snapshot-27'), findsOneWidget);
+      expect(find.text('Cached'), findsOneWidget);
+      expect(find.text('Stale'), findsOneWidget);
+      expect(find.text('Fallback used'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('analytics-bar-1')));
+      await tester.pumpAndSettle();
+      expect(find.text('Backup BNM'), findsOneWidget);
+      expect(find.text('Fallback'), findsOneWidget);
+      expect(find.text('Fallback used'), findsOneWidget);
+      expect(find.text('Stale'), findsNothing);
     },
   );
 
@@ -107,6 +98,15 @@ void main() {
     expect(find.byKey(const Key('analytics-metrics')), findsOneWidget);
   });
 
+  testWidgets('keeps MDL available in analytics currency selectors', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await tester.tap(find.byKey(const Key('analytics-base')));
+    await tester.pumpAndSettle();
+    expect(find.text('MDL — Moldovan Leu'), findsOneWidget);
+  });
+
   testWidgets('shows an explicit empty state without metrics or point cards', (
     tester,
   ) async {
@@ -114,7 +114,7 @@ void main() {
 
     expect(
       find.text(
-        'No historical data available for this pair in the selected period.',
+        'No historical data is available for this pair in the selected period.',
       ),
       findsOneWidget,
     );
@@ -167,14 +167,62 @@ void main() {
     expect(find.byType(Card), findsNothing);
   });
 
+  testWidgets('chart represents each point and styles day-over-day movement', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    expect(find.byKey(const Key('analytics-chart')), findsOneWidget);
+    expect(find.byKey(const Key('analytics-bar-0')), findsOneWidget);
+    expect(find.byKey(const Key('analytics-bar-1')), findsOneWidget);
+    expect(find.byKey(const Key('analytics-bar-2')), findsOneWidget);
+    expect(find.byKey(const Key('analytics-bar-3')), findsNothing);
+    expect(
+      (tester
+                  .widget<Container>(
+                    find.byKey(const Key('analytics-bar-color-0')),
+                  )
+                  .decoration!
+              as BoxDecoration)
+          .color,
+      CurrencyHubColors.neutral,
+    );
+    expect(
+      (tester
+                  .widget<Container>(
+                    find.byKey(const Key('analytics-bar-color-1')),
+                  )
+                  .decoration!
+              as BoxDecoration)
+          .color,
+      CurrencyHubColors.positive,
+    );
+    expect(
+      (tester
+                  .widget<Container>(
+                    find.byKey(const Key('analytics-bar-color-2')),
+                  )
+                  .decoration!
+              as BoxDecoration)
+          .color,
+      CurrencyHubColors.negative,
+    );
+
+    await tester.tap(find.byKey(const Key('analytics-bar-0')));
+    await tester.pumpAndSettle();
+    expect(find.text('2026-10-27'), findsOneWidget);
+    expect(find.text('snapshot-27'), findsOneWidget);
+    expect(find.text('BNM'), findsOneWidget);
+  });
+
   testWidgets('remains scrollable on a phone-sized display', (tester) async {
     await pumpScreen(tester, size: const Size(390, 844));
     await tester.scrollUntilVisible(
-      find.text('Snapshot snapshot-28'),
+      find.text('snapshot-29'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Snapshot snapshot-28'), findsOneWidget);
+    expect(find.text('snapshot-29'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -223,6 +271,9 @@ Future<void> pumpScreen(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: AnalyticsScreen(apiClient: RatesApiClient(client: fake)),
     ),
   );
@@ -252,6 +303,12 @@ Map<String, dynamic> currenciesPayload() => {
   'currencies': [
     {'code': 'EUR', 'name': 'Euro', 'type': 'fiat', 'is_supported': true},
     {'code': 'USD', 'name': 'US Dollar', 'type': 'fiat', 'is_supported': true},
+    {
+      'code': 'MDL',
+      'name': 'Moldovan Leu',
+      'type': 'fiat',
+      'is_supported': true,
+    },
     {'code': 'BTC', 'name': 'Bitcoin', 'type': 'crypto', 'is_supported': true},
     {
       'code': 'XXX',
@@ -290,6 +347,14 @@ Map<String, dynamic> historyPayload({
             sourceFallback: true,
             targetFreshness: 'live',
           ),
+          historyPoint(
+            date: '2026-10-29',
+            value: '0.0000321',
+            snapshot: 'snapshot-29',
+            sourceProvider: 'BNM',
+            sourceFreshness: 'live',
+            targetFreshness: 'live',
+          ),
         ],
   'empty': empty,
   if (empty)
@@ -309,21 +374,22 @@ Map<String, dynamic> analyticsPayload({
       : [
           {'date': '2026-10-27', 'value': '0.0000318'},
           {'date': '2026-10-28', 'value': '0.0000330'},
+          {'date': '2026-10-29', 'value': '0.0000321'},
         ],
   if (!empty) ...{
     'minimum': '0.0000318',
     'maximum': '0.0000330',
-    'average': '0.0000324',
-    'absolute_change': '0.0000012',
-    'percentage_change': '1.26',
+    'average': '0.0000323',
+    'absolute_change': '0.0000003',
+    'percentage_change': '0.94',
     'trend': 'GROWTH',
   },
   'provenance_summary': {
-    'point_count': empty ? 0 : 2,
+    'point_count': empty ? 0 : 3,
     'source_providers': empty ? <dynamic>[] : ['BNM', 'Backup BNM'],
     'target_providers': empty ? <dynamic>[] : ['CoinGecko'],
     'rate_entry_freshness_counts': {
-      'live': empty ? 0 : 2,
+      'live': empty ? 0 : 4,
       'fallback': empty ? 0 : 1,
       'cached': empty ? 0 : 1,
     },
