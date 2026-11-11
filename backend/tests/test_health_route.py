@@ -117,7 +117,7 @@ def _client(
     providers: tuple[RateProvider, ...],
     snapshot_use_case: FakeGetLatestSnapshot,
 ) -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_rate_providers] = lambda: providers
     application.dependency_overrides[get_latest_snapshot_use_case] = (
         lambda: snapshot_use_case

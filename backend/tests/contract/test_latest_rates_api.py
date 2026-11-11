@@ -149,7 +149,7 @@ def _client(
     snapshot: RateSnapshot | None = None,
     snapshot_unavailable: bool = False,
 ) -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_list_currencies_use_case] = lambda: (
         FakeListCurrencies(_all_supported_currencies())
     )

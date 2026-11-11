@@ -114,7 +114,7 @@ class FakeAnalyticsService:
 
 
 def client() -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_analytics_service] = (
         FakeAnalyticsService
     )

@@ -114,7 +114,7 @@ def _client(
     snapshot: RateSnapshot | None = None,
     error: Exception | None = None,
 ) -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_convert_currency_use_case] = lambda: (
         StubConvertCurrency(snapshot=snapshot, error=error)
     )

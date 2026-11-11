@@ -68,7 +68,7 @@ def test_provider_and_snapshot_dependencies_construct_without_fetching(
         "fetch_latest_rates",
         record_coingecko_fetch,
     )
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
 
     @application.get("/test-providers")
     def read_providers(
@@ -115,7 +115,12 @@ def test_unit_of_work_dependency_is_lazy_and_rolls_back_closes_on_exit(
         "_session_factory_for_url",
         session_factory_for_url,
     )
-    application = create_app(Settings(database_url="mssql+pyodbc://test"))
+    application = create_app(
+        Settings(
+            database_url="mssql+pyodbc://test",
+            rate_auto_refresh_enabled=False,
+        )
+    )
 
     @application.get("/test-uow")
     def read_uow(uow: UnitOfWork = Depends(dependencies.get_unit_of_work)):

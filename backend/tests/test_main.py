@@ -1,5 +1,6 @@
 """Tests for FastAPI application construction."""
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -17,8 +18,21 @@ def test_module_app_and_factory_preserve_application_metadata() -> None:
     assert application.version == "0.1.0"
 
 
+def test_auto_refresh_settings_are_configurable_and_validated() -> None:
+    settings = Settings(
+        rate_auto_refresh_enabled=False,
+        rate_auto_refresh_interval_seconds=120,
+    )
+
+    assert settings.rate_auto_refresh_enabled is False
+    assert settings.rate_auto_refresh_interval_seconds == 120
+
+    with pytest.raises(ValueError):
+        Settings(rate_auto_refresh_interval_seconds=30)
+
+
 def test_root_endpoint_remains_available() -> None:
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(Settings(rate_auto_refresh_enabled=False))) as client:
         response = client.get("/")
 
     assert response.status_code == 200
