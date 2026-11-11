@@ -103,7 +103,7 @@ def _client(
     snapshot: RateSnapshot | None = None,
     snapshot_error: Exception | None = None,
 ) -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_list_currencies_use_case] = lambda: (
         FakeListCurrencies(currencies)
     )
@@ -204,7 +204,7 @@ def test_current_rates_routes_are_mounted_only_at_api_v1_paths() -> None:
 
 def test_refresh_endpoint_reports_independent_freshness_counts() -> None:
     snapshot = _snapshot()
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_refresh_rates_use_case] = lambda: (
         FakeRefreshRates(RefreshResult(snapshot, updated=True))
     )

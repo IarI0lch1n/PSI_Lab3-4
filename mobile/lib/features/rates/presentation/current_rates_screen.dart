@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/api/rates_api_client.dart';
@@ -20,27 +22,70 @@ class CurrentRatesScreen extends StatefulWidget {
   State<CurrentRatesScreen> createState() => _CurrentRatesScreenState();
 }
 
-class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
+class _CurrentRatesScreenState extends State<CurrentRatesScreen>
+    with WidgetsBindingObserver {
   final _searchController = TextEditingController();
+  Timer? _pollingTimer;
+  bool _isRefreshInFlight = false;
   _CurrentRatesState _state = const _LoadingRates();
   CurrencyFilter _filter = CurrencyFilter.all;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRates();
+    _startPolling();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _loadRates(silent: true);
+      _startPolling();
+    }
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _stopPolling();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopPolling();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadRates() async {
-    setState(() {
-      _state = const _LoadingRates();
+  void _startPolling() {
+    _stopPolling();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      _loadRates(silent: true);
     });
+  }
+
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+  }
+
+  Future<void> _loadRates({bool silent = false}) async {
+    if (_isRefreshInFlight) {
+      return;
+    }
+    _isRefreshInFlight = true;
+
+    if (!silent) {
+      if (!mounted) {
+        _isRefreshInFlight = false;
+        return;
+      }
+      setState(() {
+        _state = const _LoadingRates();
+      });
+    }
 
     try {
       final responses = await Future.wait<Object>([
@@ -72,12 +117,23 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
           .toList(growable: false);
 
       if (!mounted) return;
+      final activeSnapshot = _state is _LoadedRates ? (_state as _LoadedRates).snapshot : null;
+      if (silent &&
+          activeSnapshot != null &&
+          activeSnapshot.snapshotId == snapshot.snapshotId &&
+          activeSnapshot.capturedAt == snapshot.capturedAt) {
+        return;
+      }
       setState(() {
         _state = _LoadedRates(snapshot: snapshot, rows: rows);
       });
     } on Exception {
       if (!mounted) return;
-      setState(() => _state = const _FailedRates());
+      if (!silent) {
+        setState(() => _state = const _FailedRates());
+      }
+    } finally {
+      _isRefreshInFlight = false;
     }
   }
 
@@ -151,65 +207,69 @@ class _CurrentRatesScreenState extends State<CurrentRatesScreen> {
         })
         .toList(growable: false);
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      children: [
-        Text(
-          l10n.currentRates,
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          key: const Key('current-rates-search'),
-          controller: _searchController,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            labelText: l10n.searchCurrencies,
-            hintText: l10n.searchCodeOrName,
-            prefixIcon: const Icon(Icons.search),
+    return RefreshIndicator(
+      onRefresh: () => _loadRates(silent: true),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          Text(
+            l10n.currentRates,
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
-        ),
-        const SizedBox(height: 12),
-        CurrencyTypeFilter(
-          value: _filter,
-          onChanged: (value) => setState(() => _filter = value),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.snapshotCollected,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                const SizedBox(height: 4),
-                SelectableText(snapshot.capturedAt),
-                const SizedBox(height: 4),
-                Text(
-                  l10n.eachRateEffectiveTime,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+          const SizedBox(height: 14),
+          TextField(
+            key: const Key('current-rates-search'),
+            controller: _searchController,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: l10n.searchCurrencies,
+              hintText: l10n.searchCodeOrName,
+              prefixIcon: const Icon(Icons.search),
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        if (visibleRows.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 12),
-            child: Text(
-              l10n.noCurrenciesMatch,
-              key: const Key('current-rates-no-match'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
+          const SizedBox(height: 12),
+          CurrencyTypeFilter(
+            value: _filter,
+            onChanged: (value) => setState(() => _filter = value),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.snapshotCollected,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  SelectableText(snapshot.capturedAt),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.eachRateEffectiveTime,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
-          )
-        else
-          for (final row in visibleRows) _RateCard(row: row),
-      ],
+          ),
+          const SizedBox(height: 8),
+          if (visibleRows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 12),
+              child: Text(
+                l10n.noCurrenciesMatch,
+                key: const Key('current-rates-no-match'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            )
+          else
+            for (final row in visibleRows) _RateCard(row: row),
+        ],
+      ),
     );
   }
 }

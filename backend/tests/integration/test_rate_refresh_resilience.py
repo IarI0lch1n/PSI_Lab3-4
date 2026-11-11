@@ -120,7 +120,7 @@ def _client(
         clock=lambda: _NOW,
         snapshot_id_factory=lambda: _NEW_ID,
     )
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_refresh_rates_use_case] = lambda: use_case
     return TestClient(application, raise_server_exceptions=False)
 

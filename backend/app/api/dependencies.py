@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.services.snapshot_service import SnapshotService
 from app.application.services.analytics_service import AnalyticsService
+from app.application.services.rate_refresh_coordinator import RateRefreshCoordinator
 from app.application.use_cases.convert_currency import ConvertCurrency
 from app.application.use_cases.get_latest_snapshot import GetLatestSnapshot
 from app.application.use_cases.list_currencies import ListCurrencies
@@ -105,3 +106,20 @@ def get_refresh_rates_use_case(
         providers,
         unit_of_work=_create_unit_of_work(settings),
     )
+
+
+def get_rate_refresh_coordinator(
+    request: Request,
+    use_case: RefreshRates = Depends(get_refresh_rates_use_case),
+) -> RateRefreshCoordinator:
+    """Return the app-scoped refresh coordinator for startup, periodic, and manual calls."""
+    coordinator = getattr(request.app.state, "rate_refresh_coordinator", None)
+    if coordinator is not None:
+        return coordinator
+
+    coordinator = RateRefreshCoordinator(
+        settings=get_app_settings(request),
+        refresh_callable=use_case.execute,
+    )
+    request.app.state.rate_refresh_coordinator = coordinator
+    return coordinator

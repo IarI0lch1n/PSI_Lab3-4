@@ -140,7 +140,7 @@ class FakeAnalyticsService:
 
 
 def client(service: FakeAnalyticsService) -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
     application.dependency_overrides[get_analytics_service] = lambda: service
     return TestClient(application, raise_server_exceptions=False)
 

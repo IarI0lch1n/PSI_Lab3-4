@@ -125,7 +125,7 @@ def _client(
     *,
     use_case_error: Exception | None = None,
 ) -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
 
     def provide_conversion_use_case() -> ConvertCurrency:
         if use_case_error is not None:

@@ -47,11 +47,23 @@ class Settings(BaseSettings):
     coingecko_timeout_seconds: float = 10.0
     coingecko_max_retries: int = 3
 
+    # Current-rate auto-refresh configuration
+    rate_auto_refresh_enabled: bool = True
+    rate_auto_refresh_interval_seconds: int = 600
+
     # CORS Configuration
     # Typed as str | list[str] so pydantic-settings does not attempt json.loads on comma-separated env values
     cors_allowed_origins: str | list[str] = Field(
         default_factory=lambda: ["http://localhost:4200", "http://127.0.0.1:4200"]
     )
+
+    @field_validator("rate_auto_refresh_interval_seconds")
+    @classmethod
+    def validate_auto_refresh_interval(cls, value: int) -> int:
+        """Reject obviously unsafe refresh intervals for the app background loop."""
+        if value < 60:
+            raise ValueError("rate_auto_refresh_interval_seconds must be at least 60.")
+        return value
 
     @field_validator("cors_allowed_origins")
     @classmethod

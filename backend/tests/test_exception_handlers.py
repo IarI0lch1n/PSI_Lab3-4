@@ -13,7 +13,7 @@ from app.main import create_app
 
 
 def _client_for_exception(path: str, exception: Exception) -> TestClient:
-    application = create_app(Settings())
+    application = create_app(Settings(rate_auto_refresh_enabled=False))
 
     @application.get(path)
     def raise_error():
